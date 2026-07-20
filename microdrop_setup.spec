@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for the standalone Microdrop launcher.
+import sys
 #
 # One-file, console build (the --launch path streams git/pixi output and calls
 # input() to pause). The launch shell scripts are bundled as data so they ship
@@ -43,5 +44,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['Microdrop_Icon.ico'],
+    # .ico only embeds on Windows; macOS would need an .icns (and the console
+    # onefile binary has no bundle to carry one), Linux ignores icons entirely.
+    icon=['Microdrop_Icon.ico'] if sys.platform == 'win32' else None,
 )
