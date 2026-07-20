@@ -1,0 +1,10 @@
+# Shell scripts must stay LF or they break on Linux (bad interpreter ^M).
+*.sh text eol=lf
+# PowerShell is fine either way; keep CRLF on Windows checkouts.
+*.ps1 text eol=crlf
+# Normalize the rest to LF in the repo.
+*.py text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+Microdrop_Icon.ico binary

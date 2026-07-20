@@ -1,0 +1,19 @@
+# PyInstaller build output
+build/
+dist/
+*.manifest
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Editors
+.idea/
+.vscode/
+
+# Launcher runtime state (should never be committed)
+setup_config.json
+profiles/
