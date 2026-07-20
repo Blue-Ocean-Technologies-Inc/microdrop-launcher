@@ -225,8 +225,14 @@ def _needs_preinstall(cfg):
 # Subprocess / tool discovery helpers
 # --------------------------------------------------------------------------
 
-def run_streamed(cmd, log, cwd=None):
-    """Run *cmd*, streaming combined stdout/stderr lines through log()."""
+def run_streamed(cmd, log, cwd=None, heartbeat=None):
+    """Run *cmd*, streaming combined stdout/stderr lines through log().
+
+    Carriage-return redraws (progress bars) are treated as line breaks so
+    they still show up. With *heartbeat* (seconds), an elapsed-time line is
+    logged at that interval while the command runs — feedback during long
+    steps that print nothing for a while (pixi solves/downloads, git clone).
+    """
     log(f"$ {' '.join(str(part) for part in cmd)}")
     try:
         proc = subprocess.Popen(
@@ -236,8 +242,24 @@ def run_streamed(cmd, log, cwd=None):
     except OSError as exc:
         log(f"ERROR: {exc}")
         return 1
-    for line in proc.stdout:
-        log(line.rstrip())
+    done = threading.Event()
+    if heartbeat:
+        def beat():
+            elapsed = 0
+            while not done.wait(heartbeat):
+                elapsed += heartbeat
+                log(f"… still running ({elapsed // 60}m{elapsed % 60:02d}s)")
+        threading.Thread(target=beat, daemon=True).start()
+    pending = ""
+    for chunk in iter(lambda: proc.stdout.read(4096), ""):
+        pending += chunk.replace("\r\n", "\n").replace("\r", "\n")
+        *lines, pending = pending.split("\n")
+        for line in lines:
+            if line:
+                log(line)
+    if pending:
+        log(pending)
+    done.set()
     return proc.wait()
 
 
@@ -330,6 +352,20 @@ def list_remote_branches(repo_url):
     return branches
 
 
+def describe_checkout(repo_dir):
+    """Short ``branch @ tag/commit`` description of the checkout at
+    *repo_dir*, or None when it is not a usable git repo. ``-dirty`` marks
+    local modifications."""
+    code, out = run_capture(["git", "branch", "--show-current"], cwd=repo_dir)
+    if code != 0:
+        return None
+    branch = out.strip() or "detached HEAD"
+    code, out = run_capture(
+        ["git", "describe", "--tags", "--always", "--dirty"], cwd=repo_dir)
+    described = out.strip() if code == 0 else ""
+    return f"{branch} @ {described}" if described else branch
+
+
 def git_update_repo(repo_dir, branch, log):
     """Best-effort checkout of *branch* (resolves detached HEAD) then pull.
 
@@ -414,7 +450,7 @@ def do_launch(cfg, log=print):
         # the launch_microdrop.* scripts require it there.
         os.environ["PATH"] = (str(Path(pixi).parent) + os.pathsep
                               + os.environ.get("PATH", ""))
-        if run_streamed([pixi, "self-update"], log) != 0:
+        if run_streamed([pixi, "self-update"], log, heartbeat=15) != 0:
             log("Warning: pixi self-update failed. "
                 "Continuing with the current version...")
     else:
@@ -424,6 +460,12 @@ def do_launch(cfg, log=print):
         git_update_repo(install_dir, cfg["pixi_repo_branch"], log)
     if cfg["auto_update_src_repo"]:
         git_update_repo(install_dir / SRC_RELDIR, cfg["src_repo_branch"], log)
+
+    for label, repo_dir in (("pixi-microdrop", install_dir),
+                            ("Microdrop source", install_dir / SRC_RELDIR)):
+        described = describe_checkout(repo_dir)
+        if described:
+            log(f"{label} version: {described}")
 
     write_server_settings(cfg, log)
 
@@ -857,7 +899,8 @@ class PreInstallWizard:
             else:
                 install_dir.parent.mkdir(parents=True, exist_ok=True)
                 if run_streamed(["git", "clone", "--recurse-submodules",
-                                 PIXI_REPO_URL, str(install_dir)], log) != 0:
+                                 "--progress", PIXI_REPO_URL,
+                                 str(install_dir)], log, heartbeat=15) != 0:
                     self._fail("git clone failed — see log.")
                     return
 
@@ -869,8 +912,14 @@ class PreInstallWizard:
                     self._fail(f"Could not check out '{branch}' in {repo_dir}.")
                     return
 
-            if run_streamed([find_pixi(), "install"], log,
-                            cwd=install_dir / PIXI_PROJECT_RELDIR) != 0:
+            log("Installing the pixi environment — a first install downloads "
+                "the full dependency set and can take many minutes…")
+            # pixi hides its progress bars whenever stderr is not a terminal
+            # (as here, piped into this log), so ask for info-level logging
+            # instead; --color never keeps ANSI codes out of the log pane.
+            if run_streamed([find_pixi(), "install", "-vv", "--color", "never"],
+                            log, cwd=install_dir / PIXI_PROJECT_RELDIR,
+                            heartbeat=15) != 0:
                 self._fail("pixi install failed — see log.")
                 return
 
@@ -959,6 +1008,12 @@ class LauncherWindow:
         self.shortcut_status_var = tk.StringVar()
         ttk.Label(profile_bar, textvariable=self.shortcut_status_var,
                   foreground="gray40").pack(side="left", padx=8)
+
+        # Version bar — installed branch/tag/commit of both repos, so support
+        # conversations start with "what version are you on" answered.
+        self.version_var = tk.StringVar()
+        ttk.Label(self.frame, textvariable=self.version_var,
+                  foreground="gray40").pack(side="top", anchor="w")
 
         notebook = ttk.Notebook(self.frame)
         notebook.pack(fill="both", expand=True, pady=6)
@@ -1163,6 +1218,15 @@ class LauncherWindow:
         self._apply_gating()
         self._apply_ctx_mode()
         self._refresh_shortcut_status()
+        self._refresh_version_status()
+
+    def _refresh_version_status(self):
+        install_dir = Path(self.cfg["install_dir"])
+        self.version_var.set("   ".join(
+            f"{label}: {describe_checkout(repo_dir) or 'not found'}"
+            for label, repo_dir in (
+                ("pixi-microdrop", install_dir),
+                ("source", install_dir / SRC_RELDIR))))
 
     def _refresh_shortcut_status(self):
         if self.profile is None:
@@ -1305,6 +1369,8 @@ class LauncherWindow:
         def worker():
             self.git_log(f"[{name}] git {' '.join(git_args)}")
             run_streamed(["git", *git_args], self.git_log, cwd=repo_dir)
+            # The command may have moved HEAD — refresh the version bar.
+            self.root.after(0, self._refresh_version_status)
 
         threading.Thread(target=worker, daemon=True).start()
 
