@@ -44,8 +44,8 @@ DEFAULT_CONFIG = {
     "install_dir": "",
     "pixi_repo_branch": "master",
     "src_repo_branch": "main",
-    "auto_update_pixi_repo": True,
-    "auto_update_src_repo": True,
+    "auto_update_pixi_repo": False,
+    "auto_update_src_repo": False,
     "device": "dropbot",
     "mode": "dual",      # "dual" | "frontend" | "backend"
     "advanced_mode": False,
