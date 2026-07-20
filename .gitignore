@@ -2,6 +2,7 @@
 build/
 dist/
 *.manifest
+launcher_version.txt
 
 # Python
 __pycache__/

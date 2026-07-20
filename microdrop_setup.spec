@@ -8,6 +8,12 @@ import sys
 # version; local/dispatch builds fall back to 0.0.0.
 _tag = os.environ.get('MICRODROP_VERSION', '')
 APP_VERSION = _tag[1:] if re.fullmatch(r'v\d+\.\d+\.\d+', _tag) else '0.0.0'
+
+# Stamp the version into the bundle so the running launcher can compare
+# itself against the latest GitHub release (launcher_version() reads this).
+_version_file = os.path.join(SPECPATH, 'launcher_version.txt')
+with open(_version_file, 'w', encoding='utf-8') as _fh:
+    _fh.write(f'v{APP_VERSION}\n')
 #
 # One-file, console build (the --launch path streams git/pixi output and calls
 # input() to pause). The launch shell scripts are bundled as data so they ship
@@ -22,6 +28,7 @@ a = Analysis(
     datas=[
         ('launch_microdrop.ps1', '.'),
         ('launch_microdrop.sh', '.'),
+        (_version_file, '.'),
     ],
     hiddenimports=[],
     hookspath=[],

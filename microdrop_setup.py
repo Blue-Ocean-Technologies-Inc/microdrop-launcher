@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import urllib.request
 import webbrowser
 from collections import namedtuple
 from pathlib import Path
@@ -26,6 +27,10 @@ IS_WINDOWS = os.name == "nt"
 PIXI_REPO_URL = "https://github.com/Blue-Ocean-Technologies-Inc/pixi-microdrop.git"
 SRC_REPO_URL = "https://github.com/Blue-Ocean-Technologies-Inc/Microdrop.git"
 PIXI_MANUAL_INSTALL_URL = "https://pixi.prefix.dev/latest/installation/"
+LAUNCHER_REPO_SLUG = "Blue-Ocean-Technologies-Inc/microdrop-launcher"
+LAUNCHER_RELEASES_URL = f"https://github.com/{LAUNCHER_REPO_SLUG}/releases/latest"
+LAUNCHER_LATEST_API_URL = (
+    f"https://api.github.com/repos/{LAUNCHER_REPO_SLUG}/releases/latest")
 REPO_DIR_NAME = "pixi-microdrop"
 PIXI_PROJECT_RELDIR = "microdrop-py"
 SRC_RELDIR = Path("microdrop-py/src")
@@ -440,6 +445,97 @@ def do_launch(cfg, log=print):
                *run_args]
     run_streamed(cmd, log)
     return True
+
+
+# --------------------------------------------------------------------------
+# Launcher self-update check
+# --------------------------------------------------------------------------
+
+def launcher_version():
+    """Release tag this binary was built from (e.g. ``v0.3.1``), or None.
+
+    The version file is stamped into the bundle by microdrop_setup.spec; a
+    plain-script run (development) has no version and returns None.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    try:
+        return (launcher_assets_dir() / "launcher_version.txt").read_text(
+            encoding="utf-8").strip()
+    except OSError:
+        return None
+
+
+def _version_tuple(tag):
+    """``"v1.2.3"``/``"1.2.3"`` -> (1, 2, 3), or None if unparseable."""
+    try:
+        return tuple(int(part) for part in tag.strip().lstrip("v").split("."))
+    except ValueError:
+        return None
+
+
+def check_launcher_update():
+    """Tag of a newer launcher release on GitHub, or None. Never raises.
+
+    Skipped for dev runs (no version) and local builds (0.0.0).
+    """
+    current = _version_tuple(launcher_version() or "")
+    if not current or current == (0, 0, 0):
+        return None
+    try:
+        request = urllib.request.Request(
+            LAUNCHER_LATEST_API_URL,
+            headers={"Accept": "application/vnd.github+json",
+                     "User-Agent": "microdrop-launcher"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            tag = json.loads(response.read().decode("utf-8")).get("tag_name", "")
+    except Exception:
+        return None  # offline / rate-limited / API change — never block launch
+    latest = _version_tuple(tag)
+    return tag if latest and latest > current else None
+
+
+def attach_update_notification(root):
+    """Top-of-window banner that appears when a newer launcher is released.
+
+    The (empty, invisible) bar is packed before the wizard/launcher frames so
+    it stays above them, and survives their rebuilds; the GitHub check runs on
+    a background thread so startup never waits on the network.
+    """
+    import tkinter as tk
+    from tkinter import ttk
+    bar = ttk.Frame(root)
+    bar.pack(side="top", fill="x")
+
+    def show(tag):
+        ttk.Label(
+            bar, foreground="#b00",
+            text=f"Launcher update available: {tag} "
+                 f"(installed: {launcher_version()})").pack(
+            side="left", padx=8, pady=4)
+        ttk.Button(bar, text="Download",
+                   command=lambda: webbrowser.open(LAUNCHER_RELEASES_URL)).pack(
+            side="left", padx=4)
+        ttk.Button(bar, text="Dismiss", command=bar.destroy).pack(side="left")
+
+    def worker():
+        tag = check_launcher_update()
+        if not tag:
+            return
+        try:
+            root.after(0, lambda: show(tag))
+        except (RuntimeError, tk.TclError):
+            pass  # window closed before the check finished
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def print_update_notice():
+    """Console flavor of the update banner (headless --launch runs)."""
+    tag = check_launcher_update()
+    if tag:
+        print(f"*** Launcher update available: {tag} "
+              f"(installed: {launcher_version()}) — {LAUNCHER_RELEASES_URL}")
 
 
 # --------------------------------------------------------------------------
@@ -1298,6 +1394,7 @@ class LauncherWindow:
 def run_gui(cfg, profile=None):
     import tkinter as tk
     root = tk.Tk()
+    attach_update_notification(root)
 
     def open_launcher():
         LauncherWindow(root, cfg, profile=profile)
@@ -1325,6 +1422,9 @@ def main(argv=None):
     cfg = load_config(args.profile)
     if args.launch:
         if not _needs_preinstall(cfg):
+            # Result prints amid the launch log whenever it arrives; the
+            # launch itself never waits on the network.
+            threading.Thread(target=print_update_notice, daemon=True).start()
             do_launch(cfg)
             try:
                 input("Done. Press Enter to exit…")
