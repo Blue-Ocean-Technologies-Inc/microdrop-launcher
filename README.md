@@ -3,7 +3,7 @@
 Standalone setup & launcher for [Microdrop](https://github.com/Blue-Ocean-Technologies-Inc/Microdrop)
 (the Sci-Bots digital-microfluidics control system). It is the bootstrap a new
 user runs **before** any project environment exists, so it lives in its own repo
-and ships as a single Windows `.exe`.
+and ships as a single-file binary for Windows, Linux, and macOS.
 
 `microdrop_setup.py` is **Python stdlib only** (tkinter GUI) — it must run before
 pixi or the project env are installed.
@@ -32,8 +32,18 @@ python microdrop_setup.py
 python microdrop_setup.py --launch [--profile <name>]
 ```
 
-The prebuilt `microdrop_setup.exe` (see Releases) needs only **git** on the
-machine; it installs pixi itself.
+The prebuilt binaries (see Releases) need only **git** on the machine; the
+launcher installs pixi itself:
+
+- `microdrop_setup.exe` — Windows x64
+- `microdrop_setup-linux-x86_64` — Linux x64
+- `microdrop_setup-macos-arm64` — macOS Apple Silicon
+- `microdrop_setup-macos-x86_64` — macOS Intel
+
+On Linux/macOS, mark the download executable first: `chmod +x microdrop_setup-*`.
+The macOS binaries are unsigned, so Gatekeeper quarantines them on first run;
+clear it with `xattr -d com.apple.quarantine microdrop_setup-macos-*` (or
+right-click → Open once).
 
 ## How it finds the install
 
@@ -44,14 +54,15 @@ its config and resolves everything (repo tree, settings files, icons, the
 (`-InstallDir` / `--install-dir`), so it does not need to live inside the
 `pixi-microdrop` checkout.
 
-## Building the exe locally
+## Building locally
 
 ```bash
 pip install "pyinstaller>=6,<7"
 pyinstaller --clean --noconfirm microdrop_setup.spec
-# -> dist/microdrop_setup.exe
+# -> dist/microdrop_setup.exe (Windows) or dist/microdrop_setup (Linux/macOS)
 ```
 
-CI (`.github/workflows/release.yml`) builds the exe on every `v*` tag and
-attaches it to the matching GitHub Release. Versioning/changelog follow
-Conventional Commits via commitizen (`.cz.toml`).
+CI (`.github/workflows/release.yml`) builds all four platform binaries on every
+`v*` tag and attaches them to the matching GitHub Release (manual
+`workflow_dispatch` runs upload build artifacts only). Versioning/changelog
+follow Conventional Commits via commitizen (`.cz.toml`).
