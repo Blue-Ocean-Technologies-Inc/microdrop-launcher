@@ -90,9 +90,12 @@ jobs:
           - os: ubuntu-latest
             asset: microdrop_setup-linux-x86_64
           - os: macos-latest
-            asset: microdrop_setup-macos-arm64
+            asset: Microdrop-Launcher-macos-arm64.dmg
           - os: macos-15-intel
-            asset: microdrop_setup-macos-x86_64
+            asset: Microdrop-Launcher-macos-x86_64.dmg
+    env:
+      # Consumed by the spec for the .app's CFBundleShortVersionString.
+      MICRODROP_VERSION: ${{ needs.bump.outputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -115,15 +118,28 @@ jobs:
       - name: Install PyInstaller
         run: pip install "pyinstaller>=6,<7"
 
+      # Pillow converts Microdrop_Icon.ico to the .icns the .app bundle needs.
+      - name: Install Pillow (macOS)
+        if: runner.os == 'macOS'
+        run: pip install pillow
+
       - name: Build binary
         run: pyinstaller --clean --noconfirm microdrop_setup.spec
 
-      - name: Rename to platform asset name
-        if: runner.os != 'Windows'
-        shell: bash
+      - name: Rename to platform asset name (Linux)
+        if: runner.os == 'Linux'
         run: |
           mv dist/microdrop_setup "dist/${{ matrix.asset }}"
           chmod +x "dist/${{ matrix.asset }}"
+
+      - name: Package .app into dmg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir dmg-staging
+          mv "dist/Microdrop Launcher.app" dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create -volname "Microdrop Launcher" -srcfolder dmg-staging \
+            -ov -format UDZO "dist/${{ matrix.asset }}"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
