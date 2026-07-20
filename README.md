@@ -22,6 +22,24 @@ reset); and edit server settings (Redis host/port, Dramatiq worker
 threads/timeout). It can save named **config profiles** and create desktop
 shortcuts, each launching its own profile via `--launch --profile <name>`.
 
+## Download
+
+Permanent links — these always point at the newest release:
+
+| OS | Download |
+|---|---|
+| Windows x64 | [microdrop_setup.exe](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup.exe) |
+| Linux x64 | [microdrop_setup-linux-x86_64](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-linux-x86_64) |
+| macOS Apple Silicon | [microdrop_setup-macos-arm64](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-macos-arm64) |
+| macOS Intel | [microdrop_setup-macos-x86_64](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-macos-x86_64) |
+
+The binaries need only **git** on the machine; the launcher installs pixi
+itself. On Linux/macOS, mark the download executable first:
+`chmod +x microdrop_setup-*`. The macOS binaries are unsigned, so Gatekeeper
+quarantines them on first run; clear it with
+`xattr -d com.apple.quarantine microdrop_setup-macos-*` (or right-click → Open
+once).
+
 ## Usage
 
 ```bash
@@ -31,19 +49,6 @@ python microdrop_setup.py
 # Headless launch of a saved config (what desktop shortcuts run)
 python microdrop_setup.py --launch [--profile <name>]
 ```
-
-The prebuilt binaries (see Releases) need only **git** on the machine; the
-launcher installs pixi itself:
-
-- `microdrop_setup.exe` — Windows x64
-- `microdrop_setup-linux-x86_64` — Linux x64
-- `microdrop_setup-macos-arm64` — macOS Apple Silicon
-- `microdrop_setup-macos-x86_64` — macOS Intel
-
-On Linux/macOS, mark the download executable first: `chmod +x microdrop_setup-*`.
-The macOS binaries are unsigned, so Gatekeeper quarantines them on first run;
-clear it with `xattr -d com.apple.quarantine microdrop_setup-macos-*` (or
-right-click → Open once).
 
 ## How it finds the install
 
