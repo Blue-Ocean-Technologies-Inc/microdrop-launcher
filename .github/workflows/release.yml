@@ -141,10 +141,11 @@ jobs:
           hdiutil create -volname "Microdrop Launcher" -srcfolder dmg-staging \
             -ov -format UDZO "dist/${{ matrix.asset }}"
 
+      # The bin- prefix is what the release job downloads on; keep them in sync.
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
+          name: bin-${{ matrix.asset }}
           path: dist/${{ matrix.asset }}
 
   release:
@@ -157,7 +158,7 @@ jobs:
       - name: Download binaries
         uses: actions/download-artifact@v4
         with:
-          pattern: microdrop_setup*
+          pattern: bin-*
           path: dist
           merge-multiple: true
 
