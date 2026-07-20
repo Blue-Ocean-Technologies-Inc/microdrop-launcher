@@ -62,7 +62,11 @@ pyinstaller --clean --noconfirm microdrop_setup.spec
 # -> dist/microdrop_setup.exe (Windows) or dist/microdrop_setup (Linux/macOS)
 ```
 
-CI (`.github/workflows/release.yml`) builds all four platform binaries on every
-`v*` tag and attaches them to the matching GitHub Release (manual
-`workflow_dispatch` runs upload build artifacts only). Versioning/changelog
-follow Conventional Commits via commitizen (`.cz.toml`).
+Releases are fully automated: on every push to `main`,
+`.github/workflows/release.yml` runs `cz bump` (commitizen, `.cz.toml`) to
+derive the next semver from Conventional Commits — `fix:` → patch, `feat:` →
+minor, `BREAKING CHANGE` → major — commit the `CHANGELOG.md` update, tag
+`vX.Y.Z`, build all four platform binaries, and publish a GitHub Release with
+the changelog as notes. Pushes containing only non-releasable commits
+(`docs:`/`chore:`/`ci:`…) don't release. Manual `workflow_dispatch` runs build
+artifacts only.
