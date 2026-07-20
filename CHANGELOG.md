@@ -1,3 +1,10 @@
+## v0.5.0 (2026-07-20)
+
+### Feat
+
+- disable repo auto-update on launch by default
+- show installed versions and verbose install progress in launcher
+
 ## v0.4.0 (2026-07-20)
 
 ### Feat
