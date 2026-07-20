@@ -1,3 +1,9 @@
+## v0.4.0 (2026-07-20)
+
+### Feat
+
+- notify when a newer launcher release is available
+
 ## v0.3.1 (2026-07-20)
 
 ### Fix
