@@ -1,3 +1,9 @@
+## v0.3.1 (2026-07-20)
+
+### Fix
+
+- attach the macOS dmg assets to releases
+
 ## v0.3.0 (2026-07-20)
 
 ### Feat
