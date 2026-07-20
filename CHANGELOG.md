@@ -1,3 +1,9 @@
+## v0.3.0 (2026-07-20)
+
+### Feat
+
+- ship macOS builds as a Microdrop Launcher.app inside a dmg
+
 ## v0.2.0 (2026-07-20)
 
 ### Feat
