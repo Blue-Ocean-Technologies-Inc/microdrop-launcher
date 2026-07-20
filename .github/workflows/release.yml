@@ -1,20 +1,85 @@
-name: Build launcher binaries
+name: Release
 
-# Builds the standalone launcher with PyInstaller for Windows, Linux, and
-# macOS (arm64 + intel). On a v* tag the binaries are attached to the matching
-# GitHub Release; on manual runs they are just uploaded as build artifacts.
+# Every push to main is auto-released: commitizen computes the next semver
+# from Conventional Commits (fix -> patch, feat -> minor, BREAKING CHANGE ->
+# major), commits the CHANGELOG.md update, tags vX.Y.Z, then the matrix builds
+# the four platform binaries from that tag and a GitHub Release is published
+# with the changelog increment as its notes. Pushes with no releasable commits
+# (docs/chore/ci only) skip the whole thing.
+#
+# The bump job pushes the tag itself because tags pushed with GITHUB_TOKEN do
+# not trigger other workflows — the build must be chained here, not tag-driven.
+# Manually pushed v* tags (PAT/local) and workflow_dispatch runs still build;
+# manual tags also get a release with auto-generated notes.
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed to create/attach the release on tag builds
+  contents: write   # push bump commit + tag, create the release
+
+# Queue runs so two quick pushes to main can't race the same bump.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  bump:
+    name: bump version & changelog
+    if: >
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore: release')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # cz bump walks the full history and tags
+
+      - name: Install commitizen
+        run: pipx install "commitizen>=4,<5"
+
+      - name: Bump version, update changelog, push tag
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set +e
+          cz bump --yes --changelog --changelog-to-stdout > release_notes.md
+          rc=$?
+          set -e
+          # 3 = no commits since last tag, 21 = commits but none releasable
+          if [ "$rc" -eq 3 ] || [ "$rc" -eq 21 ]; then
+            echo "No feat/fix/BREAKING commits since the last tag — nothing to release."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$rc" -ne 0 ]; then
+            exit "$rc"
+          fi
+          tag="$(git describe --tags --abbrev=0)"
+          git push origin main "refs/tags/$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release notes
+        if: steps.bump.outputs.tag != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.md
+
   build:
     name: build (${{ matrix.asset }})
+    needs: bump
+    # !cancelled() lets this run when bump was skipped (tag push / dispatch);
+    # a bump failure or a no-release push leaves tag empty and skips the build.
+    if: >
+      !cancelled() && (needs.bump.outputs.tag != '' ||
+      startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,6 +95,8 @@ jobs:
             asset: microdrop_setup-macos-x86_64
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.tag || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -65,16 +132,35 @@ jobs:
           path: dist/${{ matrix.asset }}
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    needs: [bump, build]
+    if: >
+      !cancelled() && needs.build.result == 'success' &&
+      (needs.bump.outputs.tag != '' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download binaries
+        uses: actions/download-artifact@v4
         with:
+          pattern: microdrop_setup*
           path: dist
           merge-multiple: true
 
-      - name: Attach binaries to release
-        uses: softprops/action-gh-release@v2
+      - name: Download release notes
+        if: needs.bump.outputs.tag != ''
+        uses: actions/download-artifact@v4
         with:
-          files: dist/*
+          name: release-notes
+          path: notes
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.bump.outputs.tag || github.ref_name }}
+        run: |
+          args=(--repo "${{ github.repository }}" --title "$TAG")
+          if [ -f notes/release_notes.md ]; then
+            args=("${args[@]}" --notes-file notes/release_notes.md)
+          else
+            args=("${args[@]}" --generate-notes)
+          fi
+          gh release create "$TAG" dist/* "${args[@]}"
