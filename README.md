@@ -8,20 +8,6 @@ and ships as a single-file binary for Windows, Linux, and macOS.
 `microdrop_setup.py` is **Python stdlib only** (tkinter GUI) — it must run before
 pixi or the project env are installed.
 
-## What it does
-
-**Stage 1 — pre-install:** installs [pixi](https://pixi.prefix.dev) if missing,
-clones [`pixi-microdrop`](https://github.com/Blue-Ocean-Technologies-Inc/pixi-microdrop)
-(with the Microdrop source submodule) into a chosen install directory, and
-prefetches the environment.
-
-**Stage 2 — launcher:** a tabbed GUI to pick the launch **mode**
-(frontend / backend / dual), **device** (dropbot / opendrop / mock), and
-per-group plugins; manage repo branches and git maintenance (pull / stash /
-reset); and edit server settings (Redis host/port, Dramatiq worker
-threads/timeout). It can save named **config profiles** and create desktop
-shortcuts, each launching its own profile via `--launch --profile <name>`.
-
 ## Download
 
 Permanent links — these always point at the newest release:
@@ -42,6 +28,20 @@ The launcher needs only **git** on the machine; it installs pixi itself.
 app is unsigned, so macOS blocks the first launch — approve it under System
 Settings → Privacy & Security → "Open Anyway", or run
 `xattr -d com.apple.quarantine "/Applications/Microdrop Launcher.app"`.
+
+## What it does
+
+**Stage 1 — pre-install:** installs [pixi](https://pixi.prefix.dev) if missing,
+clones [`pixi-microdrop`](https://github.com/Blue-Ocean-Technologies-Inc/pixi-microdrop)
+(with the Microdrop source submodule) into a chosen install directory, and
+prefetches the environment.
+
+**Stage 2 — launcher:** a tabbed GUI to pick the launch **mode**
+(frontend / backend / dual), **device** (dropbot / opendrop / mock), and
+per-group plugins; manage repo branches and git maintenance (pull / stash /
+reset); and edit server settings (Redis host/port, Dramatiq worker
+threads/timeout). It can save named **config profiles** and create desktop
+shortcuts, each launching its own profile via `--launch --profile <name>`.
 
 ## Usage
 
