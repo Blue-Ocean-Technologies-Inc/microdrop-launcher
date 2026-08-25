@@ -1,3 +1,9 @@
+## v0.6.0 (2026-08-25)
+
+### Feat
+
+- build a linux aarch64 binary for Raspberry Pi
+
 ## v0.5.0 (2026-07-20)
 
 ### Feat
