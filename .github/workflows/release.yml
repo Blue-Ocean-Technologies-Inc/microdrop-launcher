@@ -3,7 +3,7 @@ name: Release
 # Every push to main is auto-released: commitizen computes the next semver
 # from Conventional Commits (fix -> patch, feat -> minor, BREAKING CHANGE ->
 # major), commits the CHANGELOG.md update, tags vX.Y.Z, then the matrix builds
-# the four platform binaries from that tag and a GitHub Release is published
+# the five platform binaries from that tag and a GitHub Release is published
 # with the changelog increment as its notes. Pushes with no releasable commits
 # (docs/chore/ci only) skip the whole thing.
 #
@@ -89,6 +89,13 @@ jobs:
             asset: microdrop_setup.exe
           - os: ubuntu-latest
             asset: microdrop_setup-linux-x86_64
+          # Raspberry Pi and other ARM64 Linux boxes. PyInstaller cannot
+          # cross-compile, so this needs a real arm64 runner (free for public
+          # repos). Pinned to 22.04 rather than 24.04 on purpose: the bootloader
+          # links against the build host's glibc, and 22.04's 2.35 still loads on
+          # Pi OS Bookworm (2.36), whereas a 24.04 build (2.39) would not.
+          - os: ubuntu-22.04-arm
+            asset: microdrop_setup-linux-aarch64
           - os: macos-latest
             asset: Microdrop-Launcher-macos-arm64.dmg
           - os: macos-15-intel

@@ -16,13 +16,15 @@ Permanent links — these always point at the newest release:
 |---|---|
 | Windows x64 | [microdrop_setup.exe](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup.exe) |
 | Linux x64 | [microdrop_setup-linux-x86_64](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-linux-x86_64) |
+| Linux ARM64 (Raspberry Pi) | [microdrop_setup-linux-aarch64](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-linux-aarch64) |
 | macOS Apple Silicon | [Microdrop-Launcher-macos-arm64.dmg](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/Microdrop-Launcher-macos-arm64.dmg) |
 | macOS Intel | [Microdrop-Launcher-macos-x86_64.dmg](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/Microdrop-Launcher-macos-x86_64.dmg) |
 
 The launcher needs only **git** on the machine; it installs pixi itself.
 
-**Linux:** mark the download executable first:
-`chmod +x microdrop_setup-linux-x86_64`.
+**Linux:** mark the download executable first, e.g.
+`chmod +x microdrop_setup-linux-x86_64`. Pick the asset matching `uname -m`
+(`x86_64` or `aarch64`) — the wrong one fails with "Exec format error".
 
 **macOS:** open the dmg and drag **Microdrop Launcher** into Applications. The
 app is unsigned, so macOS blocks the first launch — approve it under System
@@ -76,7 +78,7 @@ Releases are fully automated: on every push to `main`,
 `.github/workflows/release.yml` runs `cz bump` (commitizen, `.cz.toml`) to
 derive the next semver from Conventional Commits — `fix:` → patch, `feat:` →
 minor, `BREAKING CHANGE` → major — commit the `CHANGELOG.md` update, tag
-`vX.Y.Z`, build all four platform binaries, and publish a GitHub Release with
+`vX.Y.Z`, build all five platform binaries, and publish a GitHub Release with
 the changelog as notes. Pushes containing only non-releasable commits
 (`docs:`/`chore:`/`ci:`…) don't release. Manual `workflow_dispatch` runs build
 artifacts only.
