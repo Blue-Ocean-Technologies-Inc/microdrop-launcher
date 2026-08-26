@@ -1,3 +1,10 @@
+## v0.8.0 (2026-08-26)
+
+### Feat
+
+- apply a branch selection from the Git tab, with icon tooltips
+- add portable as a first-class device choice
+
 ## v0.7.0 (2026-08-26)
 
 ### Feat
