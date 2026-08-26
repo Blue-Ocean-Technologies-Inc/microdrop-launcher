@@ -70,7 +70,7 @@ exe = EXE(
 if sys.platform == 'darwin':
     app = BUNDLE(
         exe,
-        name='Microdrop Launcher.app',
+        name='microdrop_setup.app',
         icon='Microdrop_Icon.ico',   # needs Pillow at build time (.ico -> .icns)
         bundle_identifier='ca.blueoceantechnologies.microdrop-launcher',
         info_plist={

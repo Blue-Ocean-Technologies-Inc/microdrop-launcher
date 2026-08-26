@@ -3,7 +3,7 @@ name: Release
 # Every push to main is auto-released: commitizen computes the next semver
 # from Conventional Commits (fix -> patch, feat -> minor, BREAKING CHANGE ->
 # major), commits the CHANGELOG.md update, tags vX.Y.Z, then the matrix builds
-# the five platform binaries from that tag and a GitHub Release is published
+# the four platform binaries from that tag and a GitHub Release is published
 # with the changelog increment as its notes. Pushes with no releasable commits
 # (docs/chore/ci only) skip the whole thing.
 #
@@ -97,9 +97,7 @@ jobs:
           - os: ubuntu-22.04-arm
             asset: microdrop_setup-linux-aarch64
           - os: macos-latest
-            asset: Microdrop-Launcher-macos-arm64.dmg
-          - os: macos-15-intel
-            asset: Microdrop-Launcher-macos-x86_64.dmg
+            asset: microdrop_setup-macos-arm64.dmg
     env:
       # Consumed by the spec for the .app's CFBundleShortVersionString.
       MICRODROP_VERSION: ${{ needs.bump.outputs.tag || github.ref_name }}
@@ -143,7 +141,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           mkdir dmg-staging
-          mv "dist/Microdrop Launcher.app" dmg-staging/
+          mv dist/microdrop_setup.app dmg-staging/
           ln -s /Applications dmg-staging/Applications
           hdiutil create -volname "Microdrop Launcher" -srcfolder dmg-staging \
             -ov -format UDZO "dist/${{ matrix.asset }}"

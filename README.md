@@ -17,8 +17,7 @@ Permanent links — these always point at the newest release:
 | Windows x64 | [microdrop_setup.exe](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup.exe) |
 | Linux x64 | [microdrop_setup-linux-x86_64](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-linux-x86_64) |
 | Linux ARM64 (Raspberry Pi) | [microdrop_setup-linux-aarch64](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-linux-aarch64) |
-| macOS Apple Silicon | [Microdrop-Launcher-macos-arm64.dmg](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/Microdrop-Launcher-macos-arm64.dmg) |
-| macOS Intel | [Microdrop-Launcher-macos-x86_64.dmg](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/Microdrop-Launcher-macos-x86_64.dmg) |
+| macOS Apple Silicon | [microdrop_setup-macos-arm64.dmg](https://github.com/Blue-Ocean-Technologies-Inc/microdrop-launcher/releases/latest/download/microdrop_setup-macos-arm64.dmg) |
 
 The launcher needs only **git** on the machine; it installs pixi itself.
 
@@ -26,10 +25,11 @@ The launcher needs only **git** on the machine; it installs pixi itself.
 `chmod +x microdrop_setup-linux-x86_64`. Pick the asset matching `uname -m`
 (`x86_64` or `aarch64`) — the wrong one fails with "Exec format error".
 
-**macOS:** open the dmg and drag **Microdrop Launcher** into Applications. The
-app is unsigned, so macOS blocks the first launch — approve it under System
-Settings → Privacy & Security → "Open Anyway", or run
-`xattr -d com.apple.quarantine "/Applications/Microdrop Launcher.app"`.
+**macOS:** open the dmg and drag **microdrop_setup** into Applications. Apple
+Silicon only — there is no Intel build. The app is unsigned, so macOS blocks
+the first launch — approve it under System Settings → Privacy & Security →
+"Open Anyway", or run
+`xattr -d com.apple.quarantine /Applications/microdrop_setup.app`.
 
 ## What it does
 
@@ -71,7 +71,7 @@ pip install "pyinstaller>=6,<7"
 pip install pillow   # macOS only: converts the .ico for the .app bundle
 pyinstaller --clean --noconfirm microdrop_setup.spec
 # -> dist/microdrop_setup.exe (Windows), dist/microdrop_setup (Linux),
-#    dist/"Microdrop Launcher.app" (macOS; CI wraps it in a dmg)
+#    dist/microdrop_setup.app (macOS; CI wraps it in a dmg)
 ```
 
 Releases are fully automated: on every push to `main`,
