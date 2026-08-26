@@ -1,3 +1,9 @@
+## v0.7.0 (2026-08-26)
+
+### Feat
+
+- name every release asset microdrop_setup and drop the macOS Intel build
+
 ## v0.6.0 (2026-08-25)
 
 ### Feat
