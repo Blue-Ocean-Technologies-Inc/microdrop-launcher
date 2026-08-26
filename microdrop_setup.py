@@ -63,11 +63,13 @@ PLUGIN_CONSTS_VARS = (
     "REQUIRED_PLUGINS",
     "FRONTEND_PLUGINS",
     "DROPBOT_FRONTEND_PLUGINS",
+    "PORTABLE_DROPBOT_FRONTEND_PLUGINS",
     "OPENDROP_FRONTEND_PLUGINS",
     "MOCK_DROPBOT_FRONTEND_PLUGINS",
     "SERVICE_PLUGINS",
     "BACKEND_PLUGINS",
     "DROPBOT_BACKEND_PLUGINS",
+    "PORTABLE_DROPBOT_BACKEND_PLUGINS",
     "OPENDROP_BACKEND_PLUGINS",
     "MOCK_DROPBOT_BACKEND_PLUGINS",
 )
@@ -104,7 +106,7 @@ def build_display_groups(parsed):
                 if PROTOCOL_PLUGIN_NAME_MARKER in p and p not in mandatory]
     recommended = [p for p in frontend
                    if p not in mandatory and p not in protocol]
-    return [
+    groups = [
         DisplayGroup("required", "Required (always loaded)",
                      parsed["REQUIRED_PLUGINS"], None, None),
         DisplayGroup("frontend_core", "Frontend — core (required with frontend)",
@@ -116,6 +118,9 @@ def build_display_groups(parsed):
         DisplayGroup("dropbot_frontend", "DropBot frontend",
                      parsed["DROPBOT_FRONTEND_PLUGINS"], "frontend",
                      {"dropbot", "mock"}),
+        DisplayGroup("portable_frontend", "Portable DropBot frontend",
+                     parsed["PORTABLE_DROPBOT_FRONTEND_PLUGINS"], "frontend",
+                     {"portable"}),
         DisplayGroup("opendrop_frontend", "OpenDrop frontend",
                      parsed["OPENDROP_FRONTEND_PLUGINS"], "frontend",
                      {"opendrop"}),
@@ -128,6 +133,9 @@ def build_display_groups(parsed):
                      parsed["BACKEND_PLUGINS"], "backend", None),
         DisplayGroup("dropbot_backend", "DropBot backend",
                      parsed["DROPBOT_BACKEND_PLUGINS"], "backend", {"dropbot"}),
+        DisplayGroup("portable_backend", "Portable DropBot backend",
+                     parsed["PORTABLE_DROPBOT_BACKEND_PLUGINS"], "backend",
+                     {"portable"}),
         DisplayGroup("opendrop_backend", "OpenDrop backend",
                      parsed["OPENDROP_BACKEND_PLUGINS"], "backend",
                      {"opendrop"}),
@@ -135,6 +143,10 @@ def build_display_groups(parsed):
                      parsed["MOCK_DROPBOT_BACKEND_PLUGINS"], "backend",
                      {"mock"}),
     ]
+    # A group parses empty when the checked-out plugin_consts.py predates it —
+    # the portable groups on a Microdrop branch without the portable device.
+    # Drop it rather than render a section header with nothing under it.
+    return [group for group in groups if group.plugins]
 
 
 # --------------------------------------------------------------------------
@@ -1043,7 +1055,7 @@ class LauncherWindow:
         device_row = ttk.Frame(content)
         device_row.pack(fill="x", pady=(0, 4))
         ttk.Label(device_row, text="Device:").pack(side="left")
-        for device in ("dropbot", "opendrop", "mock"):
+        for device in ("dropbot", "portable", "opendrop", "mock"):
             ttk.Radiobutton(device_row, text=device, value=device,
                             variable=self.device_var,
                             command=self._apply_gating).pack(side="left", padx=4)

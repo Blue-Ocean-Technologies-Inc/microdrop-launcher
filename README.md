@@ -39,7 +39,7 @@ clones [`pixi-microdrop`](https://github.com/Blue-Ocean-Technologies-Inc/pixi-mi
 prefetches the environment.
 
 **Stage 2 — launcher:** a tabbed GUI to pick the launch **mode**
-(frontend / backend / dual), **device** (dropbot / opendrop / mock), and
+(frontend / backend / dual), **device** (dropbot / portable / opendrop / mock), and
 per-group plugins; manage repo branches and git maintenance (pull / stash /
 reset); and edit server settings (Redis host/port, Dramatiq worker
 threads/timeout). It can save named **config profiles** and create desktop

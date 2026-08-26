@@ -8,7 +8,7 @@ param (
     [string]$InstallDir = $PSScriptRoot,
 
     # Back-compat with the old .bat wrappers; equivalent to "--device <x>".
-    [ValidateSet("dropbot", "opendrop", "mock")]
+    [ValidateSet("dropbot", "portable", "opendrop", "mock")]
     [string]$Device,
 
     [Parameter(ValueFromRemainingArguments)]
