@@ -81,6 +81,14 @@ FRONTEND_MANDATORY_PLUGINS = ("MicrodropPlugin", "TasksPlugin")
 # separately under "Protocol".
 PROTOCOL_PLUGIN_NAME_MARKER = "Protocol"
 
+# Icon-button glyphs and the hover help that explains them.
+REFRESH_ICON = "⟳"
+REFRESH_TOOLTIP = ("Reload the branch list from the local checkout and the "
+                   "remote")
+APPLY_BRANCH_ICON = "✓"
+APPLY_BRANCH_TOOLTIP = ("Check out the selected branch now (fetches first, so "
+                        "branches that only exist on the remote work too)")
+
 # Which plugin sides each launch mode enables.
 MODE_PLUGIN_SIDES = {
     "dual": {"frontend", "backend"},
@@ -804,6 +812,58 @@ class CollapsibleGroup:
             self.body.pack(fill="x")
 
 
+class Tooltip:
+    """Hover help for a widget: a small borderless popup under it.
+
+    Icon buttons carry no label, so their meaning lives here.
+    """
+
+    DELAY_MS = 450
+
+    def __init__(self, widget, text):
+        import tkinter as tk
+        self._tk = tk
+        self.widget = widget
+        self.text = text
+        self._after_id = None
+        self._window = None
+        # add="+" so these never displace bindings the widget already has.
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+
+    def _schedule(self, _event=None):
+        self._cancel()
+        self._after_id = self.widget.after(self.DELAY_MS, self._show)
+
+    def _cancel(self):
+        if self._after_id is not None:
+            self.widget.after_cancel(self._after_id)
+            self._after_id = None
+
+    def _show(self):
+        self._after_id = None
+        # The widget can be torn down (tab rebuild, launch) while the timer
+        # is pending.
+        if self._window is not None or not self.widget.winfo_exists():
+            return
+        x = self.widget.winfo_rootx()
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self._window = self._tk.Toplevel(self.widget)
+        self._window.wm_overrideredirect(True)   # no title bar or border
+        self._window.wm_attributes("-topmost", True)
+        self._window.wm_geometry(f"+{x}+{y}")
+        self._tk.Label(self._window, text=self.text, justify="left",
+                       background="#ffffe0", relief="solid", borderwidth=1,
+                       padx=6, pady=3).pack()
+
+    def _hide(self, _event=None):
+        self._cancel()
+        if self._window is not None:
+            self._window.destroy()
+            self._window = None
+
+
 class PreInstallWizard:
     """Stage 1: choose install dir + branches, clone, pixi install."""
 
@@ -842,11 +902,13 @@ class PreInstallWizard:
             branch_box = ttk.Combobox(form, textvariable=branch_var,
                                       state="readonly")
             branch_box.grid(row=row, column=1, sticky="w", padx=4)
-            ttk.Button(form, text="⟳", width=3,
-                       command=lambda box=branch_box, box_repo_dir=repo_dir,
-                       box_repo_url=repo_url: populate_branch_choices(
-                           box, box_repo_dir, box_repo_url)).grid(
-                row=row, column=2, sticky="w")
+            refresh_btn = ttk.Button(
+                form, text=REFRESH_ICON, width=3,
+                command=lambda box=branch_box, box_repo_dir=repo_dir,
+                box_repo_url=repo_url: populate_branch_choices(
+                    box, box_repo_dir, box_repo_url))
+            refresh_btn.grid(row=row, column=2, sticky="w")
+            Tooltip(refresh_btn, REFRESH_TOOLTIP)
             populate_branch_choices(branch_box, repo_dir, repo_url)
 
         self.install_btn = ttk.Button(
@@ -1144,14 +1206,22 @@ class LauncherWindow:
             branch_box = ttk.Combobox(repo_box, textvariable=branch_var,
                                       state="readonly")
             branch_box.grid(row=row, column=1, padx=4)
-            ttk.Button(repo_box, text="⟳", width=3,
-                       command=lambda box=branch_box, box_repo_dir=repo_dir,
-                       box_repo_url=repo_url: populate_branch_choices(
-                           box, box_repo_dir, box_repo_url)).grid(
-                row=row, column=2, sticky="w", padx=(0, 4))
+            refresh_btn = ttk.Button(
+                repo_box, text=REFRESH_ICON, width=3,
+                command=lambda box=branch_box, box_repo_dir=repo_dir,
+                box_repo_url=repo_url: populate_branch_choices(
+                    box, box_repo_dir, box_repo_url))
+            refresh_btn.grid(row=row, column=2, sticky="w")
+            Tooltip(refresh_btn, REFRESH_TOOLTIP)
+            apply_btn = ttk.Button(
+                repo_box, text=APPLY_BRANCH_ICON, width=3,
+                command=lambda name=label, path=repo_dir,
+                var=branch_var: self._checkout_branch(name, path, var))
+            apply_btn.grid(row=row, column=3, sticky="w", padx=(0, 4))
+            Tooltip(apply_btn, APPLY_BRANCH_TOOLTIP)
             populate_branch_choices(branch_box, repo_dir, repo_url)
             ttk.Checkbutton(repo_box, text="update on launch",
-                            variable=update_var).grid(row=row, column=3)
+                            variable=update_var).grid(row=row, column=4)
 
         # Repository maintenance — discard/stash local changes per repo
         maint_box = ttk.LabelFrame(git_tab, text="Repository maintenance",
@@ -1368,9 +1438,23 @@ class LauncherWindow:
                 self.worker_timeout_var, DEFAULT_CONFIG["worker_timeout"]))
         save_config(self.cfg, self.profile)
 
-    def _git_maintenance(self, name, repo_dir, git_args, confirm=None):
-        """Run a maintenance git command against *repo_dir*, streaming to the
-        Git-tab output pane on a worker thread."""
+    def _checkout_branch(self, name, repo_dir, branch_var):
+        """Check out the branch selected for *repo_dir* in the Git tab.
+
+        Applies the dropdown selection and nothing more — no pull, so the
+        checkout lands on exactly the branch tip that was asked for. Fetches
+        first because the dropdown also offers branches that exist only on the
+        remote, which a bare checkout cannot resolve.
+        """
+        branch = branch_var.get().strip()
+        if not branch:
+            self.git_log(f"[{name}] no branch selected.")
+            return
+        self._git_maintenance(name, repo_dir, ["fetch"], ["checkout", branch])
+
+    def _git_maintenance(self, name, repo_dir, *git_commands, confirm=None):
+        """Run maintenance git commands against *repo_dir* in order, streaming
+        to the Git-tab output pane on a worker thread."""
         if confirm and not self.messagebox.askyesno(
                 "Confirm", confirm, parent=self.root):
             return
@@ -1379,9 +1463,10 @@ class LauncherWindow:
             return
 
         def worker():
-            self.git_log(f"[{name}] git {' '.join(git_args)}")
-            run_streamed(["git", *git_args], self.git_log, cwd=repo_dir)
-            # The command may have moved HEAD — refresh the version bar.
+            for git_args in git_commands:
+                self.git_log(f"[{name}] git {' '.join(git_args)}")
+                run_streamed(["git", *git_args], self.git_log, cwd=repo_dir)
+            # The commands may have moved HEAD — refresh the version bar.
             self.root.after(0, self._refresh_version_status)
 
         threading.Thread(target=worker, daemon=True).start()
