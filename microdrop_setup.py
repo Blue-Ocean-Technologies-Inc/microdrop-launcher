@@ -54,6 +54,9 @@ DEFAULT_CONFIG = {
     "worker_threads": 4,   # dramatiq worker threads to spawn
     "worker_timeout": 100,  # ms workers wake up after if the queue is idle
     "plugins": [],       # optional-plugin class names; empty = full default set
+    # Optional plugins the checkout offered when "plugins" was last saved; a
+    # plugin the checkout adds later is new and starts enabled.
+    "known_plugins": [],
     "contexts": [],      # empty = let examples.microdrop infer
     "preinstall_done": False,
 }
@@ -155,6 +158,20 @@ def build_display_groups(parsed):
     # the portable groups on a Microdrop branch without the portable device.
     # Drop it rather than render a section header with nothing under it.
     return [group for group in groups if group.plugins]
+
+
+def plugin_enabled_by_default(plugin, stored, known):
+    """Initial checkbox state for *plugin* given the saved selection.
+
+    No saved selection means the full default set. With one, a plugin is on
+    if it was selected — or if the checkout added it after the selection was
+    saved (absent from *known*), so a Microdrop update never silently ships a
+    new plugin switched off. A config saved before *known* was recorded keeps
+    the selection as-is; the first save records it.
+    """
+    if not stored:
+        return True
+    return plugin in stored or (bool(known) and plugin not in known)
 
 
 # --------------------------------------------------------------------------
@@ -1128,7 +1145,7 @@ class LauncherWindow:
         self.group_sections = {}  # group key -> CollapsibleGroup
         self.group_buttons = {}   # group key -> [(plugin name, Checkbutton)]
         stored = set(cfg["plugins"])
-        use_stored = bool(cfg["plugins"])
+        known = set(cfg["known_plugins"])
         columns_frame = ttk.Frame(content)
         columns_frame.pack(fill="x")
         columns = []
@@ -1152,7 +1169,7 @@ class LauncherWindow:
                     var = tk.BooleanVar(value=True)
                 else:
                     var = self.plugin_vars.setdefault(plugin, tk.BooleanVar(
-                        value=True if not use_stored else plugin in stored))
+                        value=plugin_enabled_by_default(plugin, stored, known)))
                     var.trace_add(
                         "write",
                         lambda *_a, key=group.key: self._sync_select_all(key))
@@ -1411,6 +1428,12 @@ class LauncherWindow:
                     plugins.append(plugin)
         return plugins
 
+    def _offered_plugins(self):
+        """Every optional plugin the checkout offers, across all groups."""
+        return list(dict.fromkeys(
+            plugin for group in self.display_groups if group.side is not None
+            for plugin in group.plugins))
+
     @staticmethod
     def _int_setting(var, default):
         text = var.get().strip()
@@ -1422,6 +1445,7 @@ class LauncherWindow:
             advanced_mode=self.advanced_var.get(),
             device=self.device_var.get(),
             plugins=self._selected_plugins(),
+            known_plugins=self._offered_plugins(),
             contexts=[] if self.ctx_auto_var.get() else [
                 name for name, var in self.ctx_vars.items() if var.get()],
             pixi_repo_branch=self.pixi_branch_var.get().strip() or "master",
