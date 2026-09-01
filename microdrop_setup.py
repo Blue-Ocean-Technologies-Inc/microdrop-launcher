@@ -1137,7 +1137,7 @@ class LauncherWindow:
         for device in ("dropbot", "portable", "opendrop", "mock"):
             ttk.Radiobutton(device_row, text=device, value=device,
                             variable=self.device_var,
-                            command=self._apply_gating).pack(side="left", padx=4)
+                            command=self._switch_device).pack(side="left", padx=4)
 
         # Plugin groups: frontend column | backend column, collapsible,
         # each with a select-all checkbox.
@@ -1380,6 +1380,17 @@ class LauncherWindow:
         if group.side not in MODE_PLUGIN_SIDES[self.mode_var.get()]:
             return False
         return not group.devices or self.device_var.get() in group.devices
+
+    def _switch_device(self):
+        """Device radios: the chosen device starts with all of its plugins
+        enabled — the user unchecks what they don't want rather than
+        enabling each one — then the usual gating applies."""
+        device = self.device_var.get()
+        for group in self.display_groups:
+            if group.devices and device in group.devices:
+                for plugin, _button in self.group_buttons[group.key]:
+                    self.plugin_vars[plugin].set(True)
+        self._apply_gating()
 
     def _apply_gating(self):
         advanced = self.advanced_var.get()
