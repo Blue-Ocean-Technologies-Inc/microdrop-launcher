@@ -1,3 +1,10 @@
+## v0.9.0 (2026-09-01)
+
+### Feat
+
+- enable a device's plugins when it is selected
+- enable plugins added after a selection was saved
+
 ## v0.8.0 (2026-08-26)
 
 ### Feat
