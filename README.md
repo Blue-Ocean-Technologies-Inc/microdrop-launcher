@@ -64,6 +64,17 @@ its config and resolves everything (repo tree, settings files, icons, the
 (`-InstallDir` / `--install-dir`), so it does not need to live inside the
 `pixi-microdrop` checkout.
 
+## Development
+
+One-time per clone:
+
+```bash
+pipx run pre-commit install --hook-type commit-msg --hook-type pre-commit
+```
+
+This repo is deliberately stdlib-only with no project environment;
+pre-commit installs ruff and the other hooks in their own isolated envs.
+
 ## Building locally
 
 ```bash
