@@ -1,0 +1,32 @@
+# One-time setup per clone:
+#   pipx run pre-commit install --hook-type commit-msg --hook-type pre-commit
+# This repo is deliberately stdlib-only with no project environment;
+# pre-commit installs ruff in its own isolated env.
+repos:
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.18.0
+    hooks:
+      - id: commitizen
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-added-large-files
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+      - id: insert-license
+        files: \.py$
+        args: [--license-filepath, .copyright-header.txt, --comment-style, "#"]
+  - repo: https://github.com/Blue-Ocean-Technologies-Inc/microdrop-dev-hooks
+    rev: v0.1.0
+    hooks:
+      - id: stamp-import-sections
+      - id: forbid-scratch-files

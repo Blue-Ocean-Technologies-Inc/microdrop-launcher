@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+# (C) Copyright 2024-2026 Blue Ocean Technologies, Inc., Toronto, ON
+# All rights reserved.
+#
+# This software is provided without warranty under the terms of the AGPL-3.0
+# license included in LICENSE and may be redistributed only under the
+# conditions described in the aforementioned license. The license is also
+# available online at https://www.gnu.org/licenses/agpl-3.0.txt
+#
+# Thanks for using Microdrop open source!
+
 """Standalone Microdrop setup & launcher.
 
 Stage 1 (pre-install): clones pixi-microdrop, installs pixi if needed,
@@ -9,6 +19,8 @@ configuration headlessly (what desktop shortcuts invoke).
 
 Python stdlib only — this must run before any project environment exists.
 """
+
+# Standard library imports.
 import argparse
 import ast
 import json
@@ -30,7 +42,8 @@ PIXI_MANUAL_INSTALL_URL = "https://pixi.prefix.dev/latest/installation/"
 LAUNCHER_REPO_SLUG = "Blue-Ocean-Technologies-Inc/microdrop-launcher"
 LAUNCHER_RELEASES_URL = f"https://github.com/{LAUNCHER_REPO_SLUG}/releases/latest"
 LAUNCHER_LATEST_API_URL = (
-    f"https://api.github.com/repos/{LAUNCHER_REPO_SLUG}/releases/latest")
+    f"https://api.github.com/repos/{LAUNCHER_REPO_SLUG}/releases/latest"
+)
 REPO_DIR_NAME = "pixi-microdrop"
 PIXI_PROJECT_RELDIR = "microdrop-py"
 SRC_RELDIR = Path("microdrop-py/src")
@@ -47,17 +60,17 @@ DEFAULT_CONFIG = {
     "auto_update_pixi_repo": False,
     "auto_update_src_repo": False,
     "device": "dropbot",
-    "mode": "dual",      # "dual" | "frontend" | "backend"
+    "mode": "dual",  # "dual" | "frontend" | "backend"
     "advanced_mode": False,
     "redis_host": "127.0.0.1",
     "redis_port": 6379,
-    "worker_threads": 4,   # dramatiq worker threads to spawn
+    "worker_threads": 4,  # dramatiq worker threads to spawn
     "worker_timeout": 100,  # ms workers wake up after if the queue is idle
-    "plugins": [],       # optional-plugin class names; empty = full default set
+    "plugins": [],  # optional-plugin class names; empty = full default set
     # Optional plugins the checkout offered when "plugins" was last saved; a
     # plugin the checkout adds later is new and starts enabled.
     "known_plugins": [],
-    "contexts": [],      # empty = let examples.microdrop infer
+    "contexts": [],  # empty = let examples.microdrop infer
     "preinstall_done": False,
 }
 
@@ -86,11 +99,12 @@ PROTOCOL_PLUGIN_NAME_MARKER = "Protocol"
 
 # Icon-button glyphs and the hover help that explains them.
 REFRESH_ICON = "⟳"
-REFRESH_TOOLTIP = ("Reload the branch list from the local checkout and the "
-                   "remote")
+REFRESH_TOOLTIP = "Reload the branch list from the local checkout and the remote"
 APPLY_BRANCH_ICON = "✓"
-APPLY_BRANCH_TOOLTIP = ("Check out the selected branch now (fetches first, so "
-                        "branches that only exist on the remote work too)")
+APPLY_BRANCH_TOOLTIP = (
+    "Check out the selected branch now (fetches first, so "
+    "branches that only exist on the remote work too)"
+)
 
 # Which plugin sides each launch mode enables.
 MODE_PLUGIN_SIDES = {
@@ -113,46 +127,97 @@ def build_display_groups(parsed):
     """Partition the parsed plugin_consts lists into launcher display groups."""
     frontend = parsed["FRONTEND_PLUGINS"]
     mandatory = [p for p in frontend if p in FRONTEND_MANDATORY_PLUGINS]
-    protocol = [p for p in frontend
-                if PROTOCOL_PLUGIN_NAME_MARKER in p and p not in mandatory]
-    recommended = [p for p in frontend
-                   if p not in mandatory and p not in protocol]
+    protocol = [
+        p for p in frontend if PROTOCOL_PLUGIN_NAME_MARKER in p and p not in mandatory
+    ]
+    recommended = [p for p in frontend if p not in mandatory and p not in protocol]
     groups = [
-        DisplayGroup("required", "Required (always loaded)",
-                     parsed["REQUIRED_PLUGINS"], None, None),
-        DisplayGroup("frontend_core", "Frontend — core (required with frontend)",
-                     mandatory, "frontend", None),
-        DisplayGroup("frontend_recommended", "Frontend — recommended",
-                     recommended, "frontend", None),
-        DisplayGroup("protocol", "Protocol",
-                     protocol, "frontend", None),
-        DisplayGroup("dropbot_frontend", "DropBot frontend",
-                     parsed["DROPBOT_FRONTEND_PLUGINS"], "frontend",
-                     {"dropbot", "mock"}),
-        DisplayGroup("portable_frontend", "Portable DropBot frontend",
-                     parsed["PORTABLE_DROPBOT_FRONTEND_PLUGINS"], "frontend",
-                     {"portable"}),
-        DisplayGroup("opendrop_frontend", "OpenDrop frontend",
-                     parsed["OPENDROP_FRONTEND_PLUGINS"], "frontend",
-                     {"opendrop"}),
-        DisplayGroup("mock_frontend", "Mock DropBot frontend",
-                     parsed["MOCK_DROPBOT_FRONTEND_PLUGINS"], "frontend",
-                     {"mock"}),
-        DisplayGroup("services", "Services (run with the frontend)",
-                     parsed["SERVICE_PLUGINS"], "frontend", None),
-        DisplayGroup("backend", "Backend",
-                     parsed["BACKEND_PLUGINS"], "backend", None),
-        DisplayGroup("dropbot_backend", "DropBot backend",
-                     parsed["DROPBOT_BACKEND_PLUGINS"], "backend", {"dropbot"}),
-        DisplayGroup("portable_backend", "Portable DropBot backend",
-                     parsed["PORTABLE_DROPBOT_BACKEND_PLUGINS"], "backend",
-                     {"portable"}),
-        DisplayGroup("opendrop_backend", "OpenDrop backend",
-                     parsed["OPENDROP_BACKEND_PLUGINS"], "backend",
-                     {"opendrop"}),
-        DisplayGroup("mock_backend", "Mock DropBot backend",
-                     parsed["MOCK_DROPBOT_BACKEND_PLUGINS"], "backend",
-                     {"mock"}),
+        DisplayGroup(
+            "required",
+            "Required (always loaded)",
+            parsed["REQUIRED_PLUGINS"],
+            None,
+            None,
+        ),
+        DisplayGroup(
+            "frontend_core",
+            "Frontend — core (required with frontend)",
+            mandatory,
+            "frontend",
+            None,
+        ),
+        DisplayGroup(
+            "frontend_recommended",
+            "Frontend — recommended",
+            recommended,
+            "frontend",
+            None,
+        ),
+        DisplayGroup("protocol", "Protocol", protocol, "frontend", None),
+        DisplayGroup(
+            "dropbot_frontend",
+            "DropBot frontend",
+            parsed["DROPBOT_FRONTEND_PLUGINS"],
+            "frontend",
+            {"dropbot", "mock"},
+        ),
+        DisplayGroup(
+            "portable_frontend",
+            "Portable DropBot frontend",
+            parsed["PORTABLE_DROPBOT_FRONTEND_PLUGINS"],
+            "frontend",
+            {"portable"},
+        ),
+        DisplayGroup(
+            "opendrop_frontend",
+            "OpenDrop frontend",
+            parsed["OPENDROP_FRONTEND_PLUGINS"],
+            "frontend",
+            {"opendrop"},
+        ),
+        DisplayGroup(
+            "mock_frontend",
+            "Mock DropBot frontend",
+            parsed["MOCK_DROPBOT_FRONTEND_PLUGINS"],
+            "frontend",
+            {"mock"},
+        ),
+        DisplayGroup(
+            "services",
+            "Services (run with the frontend)",
+            parsed["SERVICE_PLUGINS"],
+            "frontend",
+            None,
+        ),
+        DisplayGroup("backend", "Backend", parsed["BACKEND_PLUGINS"], "backend", None),
+        DisplayGroup(
+            "dropbot_backend",
+            "DropBot backend",
+            parsed["DROPBOT_BACKEND_PLUGINS"],
+            "backend",
+            {"dropbot"},
+        ),
+        DisplayGroup(
+            "portable_backend",
+            "Portable DropBot backend",
+            parsed["PORTABLE_DROPBOT_BACKEND_PLUGINS"],
+            "backend",
+            {"portable"},
+        ),
+        DisplayGroup(
+            "opendrop_backend",
+            "OpenDrop backend",
+            parsed["OPENDROP_BACKEND_PLUGINS"],
+            "backend",
+            {"opendrop"},
+        ),
+        DisplayGroup(
+            "mock_backend",
+            "Mock DropBot backend",
+            parsed["MOCK_DROPBOT_BACKEND_PLUGINS"],
+            "backend",
+            {"mock"},
+        ),
     ]
     # A group parses empty when the checked-out plugin_consts.py predates it —
     # the portable groups on a Microdrop branch without the portable device.
@@ -184,7 +249,7 @@ GLOBAL_ONLY_KEYS = ("install_dir", "preinstall_done")
 # Dropdown entry that represents the global working config (no named profile).
 DEFAULT_PROFILE_LABEL = "(default)"
 # Characters not allowed in a profile name (filesystem- and PS-command-unsafe).
-_INVALID_PROFILE_CHARS = '<>:"/\\|?*\''
+_INVALID_PROFILE_CHARS = "<>:\"/\\|?*'"
 
 
 def config_path():
@@ -200,8 +265,7 @@ def profiles_dir():
 
 def sanitize_profile_name(name):
     """Filesystem- and shell-safe form of a profile name (may be empty)."""
-    return "".join(
-        "_" if ch in _INVALID_PROFILE_CHARS else ch for ch in name).strip()
+    return "".join("_" if ch in _INVALID_PROFILE_CHARS else ch for ch in name).strip()
 
 
 def profile_path(name):
@@ -262,6 +326,7 @@ def _needs_preinstall(cfg):
 # Subprocess / tool discovery helpers
 # --------------------------------------------------------------------------
 
+
 def run_streamed(cmd, log, cwd=None, heartbeat=None):
     """Run *cmd*, streaming combined stdout/stderr lines through log().
 
@@ -273,19 +338,25 @@ def run_streamed(cmd, log, cwd=None, heartbeat=None):
     log(f"$ {' '.join(str(part) for part in cmd)}")
     try:
         proc = subprocess.Popen(
-            [str(part) for part in cmd], cwd=str(cwd) if cwd else None,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, errors="replace")
+            [str(part) for part in cmd],
+            cwd=str(cwd) if cwd else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+        )
     except OSError as exc:
         log(f"ERROR: {exc}")
         return 1
     done = threading.Event()
     if heartbeat:
+
         def beat():
             elapsed = 0
             while not done.wait(heartbeat):
                 elapsed += heartbeat
                 log(f"… still running ({elapsed // 60}m{elapsed % 60:02d}s)")
+
         threading.Thread(target=beat, daemon=True).start()
     pending = ""
     for chunk in iter(lambda: proc.stdout.read(4096), ""):
@@ -304,8 +375,12 @@ def run_capture(cmd, cwd=None):
     """Run *cmd* silently; return (returncode, stdout)."""
     try:
         proc = subprocess.run(
-            [str(part) for part in cmd], cwd=str(cwd) if cwd else None,
-            capture_output=True, text=True, errors="replace")
+            [str(part) for part in cmd],
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            errors="replace",
+        )
     except OSError as exc:
         return 1, str(exc)
     return proc.returncode, proc.stdout
@@ -328,8 +403,14 @@ def find_pixi():
 def auto_install_pixi(log):
     """Run the official pixi installer for this OS. True on success."""
     if IS_WINDOWS:
-        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-               "-Command", "iwr -useb https://pixi.sh/install.ps1 | iex"]
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "iwr -useb https://pixi.sh/install.ps1 | iex",
+        ]
     else:
         cmd = ["sh", "-c", "curl -fsSL https://pixi.sh/install.sh | sh"]
     return run_streamed(cmd, log) == 0 and find_pixi() is not None
@@ -339,18 +420,23 @@ def auto_install_pixi(log):
 # plugin_consts.py static parsing (no imports — the pixi env may not exist)
 # --------------------------------------------------------------------------
 
+
 def parse_plugin_groups(consts_path):
     """Map each PLUGIN_CONSTS_VARS name to its plugin class names via ast."""
     wanted = set(PLUGIN_CONSTS_VARS)
     tree = ast.parse(Path(consts_path).read_text(encoding="utf-8"))
     found = {}
     for node in tree.body:
-        if (isinstance(node, ast.Assign) and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id in wanted
-                and isinstance(node.value, ast.List)):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id in wanted
+            and isinstance(node.value, ast.List)
+        ):
             found[node.targets[0].id] = [
-                elt.id for elt in node.value.elts if isinstance(elt, ast.Name)]
+                elt.id for elt in node.value.elts if isinstance(elt, ast.Name)
+            ]
     return {name: found.get(name, []) for name in PLUGIN_CONSTS_VARS}
 
 
@@ -358,17 +444,19 @@ def parse_plugin_groups(consts_path):
 # Git + launch
 # --------------------------------------------------------------------------
 
+
 def list_repo_branches(repo_dir):
     """Local + remote branch names for the checkout at *repo_dir*, deduped."""
     code, out = run_capture(
-        ["git", "branch", "-a", "--format=%(refname:short)"], cwd=repo_dir)
+        ["git", "branch", "-a", "--format=%(refname:short)"], cwd=repo_dir
+    )
     if code != 0:
         return []
     branches = []
     for line in out.splitlines():
         name = line.strip()
         if name.startswith("origin/"):
-            name = name[len("origin/"):]
+            name = name[len("origin/") :]
         # refname:short renders the origin/HEAD symref as just "origin".
         if name and name not in ("HEAD", "origin") and name not in branches:
             branches.append(name)
@@ -398,7 +486,8 @@ def describe_checkout(repo_dir):
         return None
     branch = out.strip() or "detached HEAD"
     code, out = run_capture(
-        ["git", "describe", "--tags", "--always", "--dirty"], cwd=repo_dir)
+        ["git", "describe", "--tags", "--always", "--dirty"], cwd=repo_dir
+    )
     described = out.strip() if code == 0 else ""
     return f"{branch} @ {described}" if described else branch
 
@@ -416,8 +505,10 @@ def git_update_repo(repo_dir, branch, log):
     current = current.strip()
     if branch and current != branch:
         if run_streamed(["git", "checkout", branch], log, cwd=repo_dir) != 0:
-            log(f"Warning: could not check out '{branch}' in {repo_dir}; "
-                f"staying on '{current or 'detached HEAD'}'.")
+            log(
+                f"Warning: could not check out '{branch}' in {repo_dir}; "
+                f"staying on '{current or 'detached HEAD'}'."
+            )
     if run_streamed(["git", "pull"], log, cwd=repo_dir) != 0:
         log(f"Warning: could not pull {repo_dir}; continuing with current state.")
 
@@ -447,11 +538,17 @@ def write_server_settings(cfg, log):
         return
     _merge_settings_file(
         Path(cfg["install_dir"]) / REDIS_SETTINGS_RELPATH,
-        {"host": cfg["redis_host"], "port": cfg["redis_port"]}, log)
+        {"host": cfg["redis_host"], "port": cfg["redis_port"]},
+        log,
+    )
     _merge_settings_file(
         Path(cfg["install_dir"]) / DRAMATIQ_SETTINGS_RELPATH,
-        {"worker_threads": cfg["worker_threads"],
-         "worker_timeout": cfg["worker_timeout"]}, log)
+        {
+            "worker_threads": cfg["worker_threads"],
+            "worker_timeout": cfg["worker_timeout"],
+        },
+        log,
+    )
 
 
 def build_run_args(cfg):
@@ -485,11 +582,14 @@ def do_launch(cfg, log=print):
     if pixi:
         # A just-auto-installed pixi is not on PATH in this process yet, and
         # the launch_microdrop.* scripts require it there.
-        os.environ["PATH"] = (str(Path(pixi).parent) + os.pathsep
-                              + os.environ.get("PATH", ""))
+        os.environ["PATH"] = (
+            str(Path(pixi).parent) + os.pathsep + os.environ.get("PATH", "")
+        )
         if run_streamed([pixi, "self-update"], log, heartbeat=15) != 0:
-            log("Warning: pixi self-update failed. "
-                "Continuing with the current version...")
+            log(
+                "Warning: pixi self-update failed. "
+                "Continuing with the current version..."
+            )
     else:
         log("Warning: pixi not found; the launcher script will report the error.")
 
@@ -498,8 +598,10 @@ def do_launch(cfg, log=print):
     if cfg["auto_update_src_repo"]:
         git_update_repo(install_dir / SRC_RELDIR, cfg["src_repo_branch"], log)
 
-    for label, repo_dir in (("pixi-microdrop", install_dir),
-                            ("Microdrop source", install_dir / SRC_RELDIR)):
+    for label, repo_dir in (
+        ("pixi-microdrop", install_dir),
+        ("Microdrop source", install_dir / SRC_RELDIR),
+    ):
         described = describe_checkout(repo_dir)
         if described:
             log(f"{label} version: {described}")
@@ -516,12 +618,19 @@ def do_launch(cfg, log=print):
 
     run_args = build_run_args(cfg)
     if IS_WINDOWS:
-        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-               "-File", str(launch_script), "-InstallDir", str(install_dir),
-               *run_args]
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(launch_script),
+            "-InstallDir",
+            str(install_dir),
+            *run_args,
+        ]
     else:
-        cmd = ["bash", str(launch_script), "--install-dir", str(install_dir),
-               *run_args]
+        cmd = ["bash", str(launch_script), "--install-dir", str(install_dir), *run_args]
     run_streamed(cmd, log)
     return True
 
@@ -529,6 +638,7 @@ def do_launch(cfg, log=print):
 # --------------------------------------------------------------------------
 # Launcher self-update check
 # --------------------------------------------------------------------------
+
 
 def launcher_version():
     """Release tag this binary was built from (e.g. ``v0.3.1``), or None.
@@ -539,8 +649,11 @@ def launcher_version():
     if not getattr(sys, "frozen", False):
         return None
     try:
-        return (launcher_assets_dir() / "launcher_version.txt").read_text(
-            encoding="utf-8").strip()
+        return (
+            (launcher_assets_dir() / "launcher_version.txt")
+            .read_text(encoding="utf-8")
+            .strip()
+        )
     except OSError:
         return None
 
@@ -564,8 +677,11 @@ def check_launcher_update():
     try:
         request = urllib.request.Request(
             LAUNCHER_LATEST_API_URL,
-            headers={"Accept": "application/vnd.github+json",
-                     "User-Agent": "microdrop-launcher"})
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "microdrop-launcher",
+            },
+        )
         with urllib.request.urlopen(request, timeout=10) as response:
             tag = json.loads(response.read().decode("utf-8")).get("tag_name", "")
     except Exception:
@@ -583,18 +699,19 @@ def attach_update_notification(root):
     """
     import tkinter as tk
     from tkinter import ttk
+
     bar = ttk.Frame(root)
     bar.pack(side="top", fill="x")
 
     def show(tag):
         ttk.Label(
-            bar, foreground="#b00",
-            text=f"Launcher update available: {tag} "
-                 f"(installed: {launcher_version()})").pack(
-            side="left", padx=8, pady=4)
-        ttk.Button(bar, text="Download",
-                   command=lambda: webbrowser.open(LAUNCHER_RELEASES_URL)).pack(
-            side="left", padx=4)
+            bar,
+            foreground="#b00",
+            text=f"Launcher update available: {tag} (installed: {launcher_version()})",
+        ).pack(side="left", padx=8, pady=4)
+        ttk.Button(
+            bar, text="Download", command=lambda: webbrowser.open(LAUNCHER_RELEASES_URL)
+        ).pack(side="left", padx=4)
         ttk.Button(bar, text="Dismiss", command=bar.destroy).pack(side="left")
 
     def worker():
@@ -613,21 +730,29 @@ def print_update_notice():
     """Console flavor of the update banner (headless --launch runs)."""
     tag = check_launcher_update()
     if tag:
-        print(f"*** Launcher update available: {tag} "
-              f"(installed: {launcher_version()}) — {LAUNCHER_RELEASES_URL}")
+        print(
+            f"*** Launcher update available: {tag} "
+            f"(installed: {launcher_version()}) — {LAUNCHER_RELEASES_URL}"
+        )
 
 
 # --------------------------------------------------------------------------
 # Desktop shortcuts
 # --------------------------------------------------------------------------
 
+
 def desktop_dir():
     if IS_WINDOWS:
         # Resolve via the shell API — the Desktop is often redirected
         # (OneDrive), so %USERPROFILE%\Desktop is only a fallback.
-        code, out = run_capture([
-            "powershell", "-NoProfile", "-Command",
-            "[Environment]::GetFolderPath('Desktop')"])
+        code, out = run_capture(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "[Environment]::GetFolderPath('Desktop')",
+            ]
+        )
         if code == 0 and out.strip():
             return Path(out.strip())
     return Path.home() / "Desktop"
@@ -645,7 +770,7 @@ def create_shortcut(cfg, name, profile=None):
     """
     install_dir = Path(cfg["install_dir"])
     path = shortcut_path(name)
-    profile_arg = f" --profile \"{profile}\"" if profile else ""
+    profile_arg = f' --profile "{profile}"' if profile else ""
     # Frozen exe: the shortcut targets the exe directly. Plain script: target
     # the Python interpreter and pass this script's path.
     if getattr(sys, "frozen", False):
@@ -675,10 +800,11 @@ def create_shortcut(cfg, name, profile=None):
             "[Desktop Entry]\n"
             "Type=Application\n"
             f"Name={name}\n"
-            f'Exec={sys.executable} {launch_args}\n'
+            f"Exec={sys.executable} {launch_args}\n"
             f"Icon={icon}\n"
             "Terminal=true\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
         path.chmod(0o755)
     return path
 
@@ -687,11 +813,13 @@ def create_shortcut(cfg, name, profile=None):
 # GUI (tkinter imports stay function-local so --launch works without Tk)
 # --------------------------------------------------------------------------
 
+
 class LogPane:
     """Thread-safe scrolled log: worker threads call it, the GUI polls."""
 
     def __init__(self, parent, height=18):
         import tkinter as tk
+
         self._tcl_error = tk.TclError
         self.queue = queue.Queue()
         self.text = tk.Text(parent, height=height, width=100, state="disabled")
@@ -724,12 +852,14 @@ def populate_branch_choices(combobox, local_repo_dir, remote_url):
     are fetched with ls-remote on a worker thread and merged in on arrival.
     """
     import tkinter as tk
+
     branches = []
     if combobox.get():
         branches.append(combobox.get())
     if local_repo_dir is not None:
-        branches += [name for name in list_repo_branches(local_repo_dir)
-                     if name not in branches]
+        branches += [
+            name for name in list_repo_branches(local_repo_dir) if name not in branches
+        ]
     combobox["values"] = branches
 
     def fetch_remote():
@@ -741,7 +871,8 @@ def populate_branch_choices(combobox, local_repo_dir, remote_url):
             try:
                 existing = list(combobox["values"])
                 combobox["values"] = existing + [
-                    name for name in remote if name not in existing]
+                    name for name in remote if name not in existing
+                ]
             except tk.TclError:
                 pass  # combobox destroyed while the merge was queued
 
@@ -759,25 +890,26 @@ class ScrollableFrame:
     def __init__(self, parent):
         import tkinter as tk
         from tkinter import ttk
+
         self._tcl_error = tk.TclError
         self.container = ttk.Frame(parent)
-        self.canvas = tk.Canvas(self.container, highlightthickness=0,
-                                borderwidth=0)
-        scrollbar = ttk.Scrollbar(self.container, orient="vertical",
-                                  command=self.canvas.yview)
+        self.canvas = tk.Canvas(self.container, highlightthickness=0, borderwidth=0)
+        scrollbar = ttk.Scrollbar(
+            self.container, orient="vertical", command=self.canvas.yview
+        )
         self.canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
         self.inner = ttk.Frame(self.canvas)
-        self._window = self.canvas.create_window(
-            (0, 0), window=self.inner, anchor="nw")
+        self._window = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
         self.inner.bind(
             "<Configure>",
-            lambda _e: self.canvas.configure(
-                scrollregion=self.canvas.bbox("all")))
+            lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox("all")),
+        )
         self.canvas.bind(
             "<Configure>",
-            lambda e: self.canvas.itemconfigure(self._window, width=e.width))
+            lambda e: self.canvas.itemconfigure(self._window, width=e.width),
+        )
         # Windows/macOS deliver <MouseWheel>; X11 delivers Button-4/5.
         for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
             self.canvas.bind_all(sequence, self._on_mousewheel)
@@ -796,8 +928,8 @@ class CollapsibleGroup:
     def __init__(self, parent, title, select_all_command=None, collapsed=False):
         import tkinter as tk
         from tkinter import ttk
-        self.frame = ttk.Frame(parent, relief="groove", borderwidth=1,
-                               padding=2)
+
+        self.frame = ttk.Frame(parent, relief="groove", borderwidth=1, padding=2)
         header = ttk.Frame(self.frame)
         header.pack(fill="x")
         self.collapsed = collapsed
@@ -809,8 +941,11 @@ class CollapsibleGroup:
         self.select_all_button = None
         if select_all_command is not None:
             self.select_all_button = ttk.Checkbutton(
-                header, text="all", variable=self.select_all_var,
-                command=select_all_command)
+                header,
+                text="all",
+                variable=self.select_all_var,
+                command=select_all_command,
+            )
             self.select_all_button.pack(side="right")
         self.body = ttk.Frame(self.frame, padding=(16, 0, 2, 2))
         for widget in (self._arrow, title_label):
@@ -839,6 +974,7 @@ class Tooltip:
 
     def __init__(self, widget, text):
         import tkinter as tk
+
         self._tk = tk
         self.widget = widget
         self.text = text
@@ -867,12 +1003,19 @@ class Tooltip:
         x = self.widget.winfo_rootx()
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
         self._window = self._tk.Toplevel(self.widget)
-        self._window.wm_overrideredirect(True)   # no title bar or border
+        self._window.wm_overrideredirect(True)  # no title bar or border
         self._window.wm_attributes("-topmost", True)
         self._window.wm_geometry(f"+{x}+{y}")
-        self._tk.Label(self._window, text=self.text, justify="left",
-                       background="#ffffe0", relief="solid", borderwidth=1,
-                       padx=6, pady=3).pack()
+        self._tk.Label(
+            self._window,
+            text=self.text,
+            justify="left",
+            background="#ffffe0",
+            relief="solid",
+            borderwidth=1,
+            padx=6,
+            pady=3,
+        ).pack()
 
     def _hide(self, _event=None):
         self._cancel()
@@ -887,6 +1030,7 @@ class PreInstallWizard:
     def __init__(self, root, cfg, on_done):
         import tkinter as tk
         from tkinter import filedialog, messagebox, ttk
+
         self.root, self.cfg, self.on_done = root, cfg, on_done
         self.filedialog, self.messagebox = filedialog, messagebox
 
@@ -895,41 +1039,55 @@ class PreInstallWizard:
         self.frame.pack(fill="both", expand=True)
 
         self.dir_var = tk.StringVar(
-            value=cfg["install_dir"] or str(Path.home() / REPO_DIR_NAME))
+            value=cfg["install_dir"] or str(Path.home() / REPO_DIR_NAME)
+        )
         self.pixi_branch_var = tk.StringVar(value=cfg["pixi_repo_branch"])
         self.src_branch_var = tk.StringVar(value=cfg["src_repo_branch"])
 
         form = ttk.Frame(self.frame)
         form.pack(fill="x")
         ttk.Label(form, text="Install Microdrop into:").grid(
-            row=0, column=0, sticky="w")
+            row=0, column=0, sticky="w"
+        )
         ttk.Entry(form, textvariable=self.dir_var, width=60).grid(
-            row=0, column=1, padx=4)
-        ttk.Button(form, text="Browse…", command=self._browse).grid(
-            row=0, column=2)
+            row=0, column=1, padx=4
+        )
+        ttk.Button(form, text="Browse…", command=self._browse).grid(row=0, column=2)
         install_dir = Path(self.dir_var.get())
         has_checkout = (install_dir / ".git").exists()
         branch_rows = (
-            (1, "pixi-microdrop branch:", self.pixi_branch_var,
-             install_dir if has_checkout else None, PIXI_REPO_URL),
-            (2, "Microdrop source branch:", self.src_branch_var,
-             install_dir / SRC_RELDIR if has_checkout else None, SRC_REPO_URL))
+            (
+                1,
+                "pixi-microdrop branch:",
+                self.pixi_branch_var,
+                install_dir if has_checkout else None,
+                PIXI_REPO_URL,
+            ),
+            (
+                2,
+                "Microdrop source branch:",
+                self.src_branch_var,
+                install_dir / SRC_RELDIR if has_checkout else None,
+                SRC_REPO_URL,
+            ),
+        )
         for row, label, branch_var, repo_dir, repo_url in branch_rows:
             ttk.Label(form, text=label).grid(row=row, column=0, sticky="w")
-            branch_box = ttk.Combobox(form, textvariable=branch_var,
-                                      state="readonly")
+            branch_box = ttk.Combobox(form, textvariable=branch_var, state="readonly")
             branch_box.grid(row=row, column=1, sticky="w", padx=4)
             refresh_btn = ttk.Button(
-                form, text=REFRESH_ICON, width=3,
-                command=lambda box=branch_box, box_repo_dir=repo_dir,
-                box_repo_url=repo_url: populate_branch_choices(
-                    box, box_repo_dir, box_repo_url))
+                form,
+                text=REFRESH_ICON,
+                width=3,
+                command=lambda b=branch_box, d=repo_dir, u=repo_url: (
+                    populate_branch_choices(b, d, u)
+                ),
+            )
             refresh_btn.grid(row=row, column=2, sticky="w")
             Tooltip(refresh_btn, REFRESH_TOOLTIP)
             populate_branch_choices(branch_box, repo_dir, repo_url)
 
-        self.install_btn = ttk.Button(
-            self.frame, text="Install", command=self._start)
+        self.install_btn = ttk.Button(self.frame, text="Install", command=self._start)
         self.install_btn.pack(pady=6)
         self.log = LogPane(self.frame)
 
@@ -947,7 +1105,8 @@ class PreInstallWizard:
                 "Git required",
                 "Git was not found on PATH.\n\nInstall it (e.g. from "
                 "https://git-scm.com/downloads), then press Install again.",
-                parent=self.root)
+                parent=self.root,
+            )
             return
         if not find_pixi():
             auto = self.messagebox.askyesno(
@@ -956,7 +1115,8 @@ class PreInstallWizard:
                 "Yes — auto-install it now with the official installer.\n"
                 "No — open the manual install guide in your browser; press "
                 "Install again once pixi is installed.",
-                parent=self.root)
+                parent=self.root,
+            )
             if not auto:
                 webbrowser.open(PIXI_MANUAL_INSTALL_URL)
                 return
@@ -981,7 +1141,8 @@ class PreInstallWizard:
                     webbrowser.open(PIXI_MANUAL_INSTALL_URL)
                     self._fail(
                         "Pixi auto-install failed — install it manually from "
-                        "the guide just opened, then press Install again.")
+                        "the guide just opened, then press Install again."
+                    )
                     return
 
             install_dir = Path(self.dir_var.get()).expanduser()
@@ -989,28 +1150,52 @@ class PreInstallWizard:
                 log("Existing checkout detected — skipping clone.")
             else:
                 install_dir.parent.mkdir(parents=True, exist_ok=True)
-                if run_streamed(["git", "clone", "--recurse-submodules",
-                                 "--progress", PIXI_REPO_URL,
-                                 str(install_dir)], log, heartbeat=15) != 0:
+                if (
+                    run_streamed(
+                        [
+                            "git",
+                            "clone",
+                            "--recurse-submodules",
+                            "--progress",
+                            PIXI_REPO_URL,
+                            str(install_dir),
+                        ],
+                        log,
+                        heartbeat=15,
+                    )
+                    != 0
+                ):
                     self._fail("git clone failed — see log.")
                     return
 
             for repo_dir, branch in (
-                    (install_dir, self.pixi_branch_var.get().strip()),
-                    (install_dir / SRC_RELDIR, self.src_branch_var.get().strip())):
-                if branch and run_streamed(
-                        ["git", "checkout", branch], log, cwd=repo_dir) != 0:
+                (install_dir, self.pixi_branch_var.get().strip()),
+                (install_dir / SRC_RELDIR, self.src_branch_var.get().strip()),
+            ):
+                if (
+                    branch
+                    and run_streamed(["git", "checkout", branch], log, cwd=repo_dir)
+                    != 0
+                ):
                     self._fail(f"Could not check out '{branch}' in {repo_dir}.")
                     return
 
-            log("Installing the pixi environment — a first install downloads "
-                "the full dependency set and can take many minutes…")
+            log(
+                "Installing the pixi environment — a first install downloads "
+                "the full dependency set and can take many minutes…"
+            )
             # pixi hides its progress bars whenever stderr is not a terminal
             # (as here, piped into this log), so ask for info-level logging
             # instead; --color never keeps ANSI codes out of the log pane.
-            if run_streamed([find_pixi(), "install", "-vv", "--color", "never"],
-                            log, cwd=install_dir / PIXI_PROJECT_RELDIR,
-                            heartbeat=15) != 0:
+            if (
+                run_streamed(
+                    [find_pixi(), "install", "-vv", "--color", "never"],
+                    log,
+                    cwd=install_dir / PIXI_PROJECT_RELDIR,
+                    heartbeat=15,
+                )
+                != 0
+            ):
                 self._fail("pixi install failed — see log.")
                 return
 
@@ -1023,7 +1208,8 @@ class PreInstallWizard:
                 install_dir=str(install_dir),
                 pixi_repo_branch=self.pixi_branch_var.get().strip() or "master",
                 src_repo_branch=self.src_branch_var.get().strip() or "main",
-                preinstall_done=True)
+                preinstall_done=True,
+            )
             save_config(self.cfg)
             log("Pre-install complete.")
             self.root.after(0, self._finish)
@@ -1045,6 +1231,7 @@ class LauncherWindow:
     def __init__(self, root, cfg, profile=None):
         import tkinter as tk
         from tkinter import messagebox, simpledialog, ttk
+
         self.root, self.cfg = root, cfg
         self.profile = profile  # active profile name, or None for (default)
         self.messagebox, self.simpledialog = messagebox, simpledialog
@@ -1060,8 +1247,8 @@ class LauncherWindow:
             parsed = parse_plugin_groups(consts_path)
         except (OSError, SyntaxError) as exc:
             messagebox.showerror(
-                "Microdrop", f"Could not read {consts_path}: {exc}",
-                parent=root)
+                "Microdrop", f"Could not read {consts_path}: {exc}", parent=root
+            )
             parsed = {name: [] for name in PLUGIN_CONSTS_VARS}
         self.display_groups = build_display_groups(parsed)
 
@@ -1071,40 +1258,50 @@ class LauncherWindow:
         options_menu = tk.Menu(menubar, tearoff=0)
         options_menu.add_checkbutton(
             label="Advanced mode (toggle every plugin)",
-            variable=self.advanced_var, command=self._apply_gating)
+            variable=self.advanced_var,
+            command=self._apply_gating,
+        )
         menubar.add_cascade(label="Options", menu=options_menu)
         root.configure(menu=menubar)
 
         # Actions stay pinned at the bottom; the tabs fill everything above.
         buttons_row = ttk.Frame(self.frame)
         buttons_row.pack(side="bottom", pady=6)
-        ttk.Button(buttons_row, text="Launch",
-                   command=self._launch).pack(side="left", padx=4)
-        ttk.Button(buttons_row, text="Create Desktop Shortcut",
-                   command=self._create_shortcut).pack(side="left", padx=4)
-        ttk.Button(buttons_row, text="Save & Close",
-                   command=self._save_close).pack(side="left", padx=4)
+        ttk.Button(buttons_row, text="Launch", command=self._launch).pack(
+            side="left", padx=4
+        )
+        ttk.Button(
+            buttons_row, text="Create Desktop Shortcut", command=self._create_shortcut
+        ).pack(side="left", padx=4)
+        ttk.Button(buttons_row, text="Save & Close", command=self._save_close).pack(
+            side="left", padx=4
+        )
 
         # Profile bar — pick a saved config profile; each shortcut gets one.
         profile_bar = ttk.Frame(self.frame)
         profile_bar.pack(side="top", fill="x", pady=(0, 4))
         ttk.Label(profile_bar, text="Profile:").pack(side="left")
-        self.profile_var = tk.StringVar(
-            value=self.profile or DEFAULT_PROFILE_LABEL)
+        self.profile_var = tk.StringVar(value=self.profile or DEFAULT_PROFILE_LABEL)
         self.profile_combo = ttk.Combobox(
-            profile_bar, textvariable=self.profile_var, state="readonly",
-            width=24, values=[DEFAULT_PROFILE_LABEL] + list_profiles())
+            profile_bar,
+            textvariable=self.profile_var,
+            state="readonly",
+            width=24,
+            values=[DEFAULT_PROFILE_LABEL] + list_profiles(),
+        )
         self.profile_combo.pack(side="left", padx=4)
         self.profile_combo.bind("<<ComboboxSelected>>", self._on_profile_selected)
         self.shortcut_status_var = tk.StringVar()
-        ttk.Label(profile_bar, textvariable=self.shortcut_status_var,
-                  foreground="gray40").pack(side="left", padx=8)
+        ttk.Label(
+            profile_bar, textvariable=self.shortcut_status_var, foreground="gray40"
+        ).pack(side="left", padx=8)
 
         # Version bar — installed branch/tag/commit of both repos, so support
         # conversations start with "what version are you on" answered.
         self.version_var = tk.StringVar()
-        ttk.Label(self.frame, textvariable=self.version_var,
-                  foreground="gray40").pack(side="top", anchor="w")
+        ttk.Label(self.frame, textvariable=self.version_var, foreground="gray40").pack(
+            side="top", anchor="w"
+        )
 
         notebook = ttk.Notebook(self.frame)
         notebook.pack(fill="both", expand=True, pady=6)
@@ -1125,9 +1322,13 @@ class LauncherWindow:
         mode_row.pack(fill="x", pady=(4, 0))
         ttk.Label(mode_row, text="Mode:").pack(side="left")
         for value, label in MODE_LABELS:
-            ttk.Radiobutton(mode_row, text=label, value=value,
-                            variable=self.mode_var,
-                            command=self._apply_gating).pack(side="left", padx=4)
+            ttk.Radiobutton(
+                mode_row,
+                text=label,
+                value=value,
+                variable=self.mode_var,
+                command=self._apply_gating,
+            ).pack(side="left", padx=4)
 
         # Device
         self.device_var = tk.StringVar(value=cfg["device"])
@@ -1135,15 +1336,19 @@ class LauncherWindow:
         device_row.pack(fill="x", pady=(0, 4))
         ttk.Label(device_row, text="Device:").pack(side="left")
         for device in ("dropbot", "portable", "opendrop", "mock"):
-            ttk.Radiobutton(device_row, text=device, value=device,
-                            variable=self.device_var,
-                            command=self._switch_device).pack(side="left", padx=4)
+            ttk.Radiobutton(
+                device_row,
+                text=device,
+                value=device,
+                variable=self.device_var,
+                command=self._switch_device,
+            ).pack(side="left", padx=4)
 
         # Plugin groups: frontend column | backend column, collapsible,
         # each with a select-all checkbox.
-        self.plugin_vars = {}    # plugin name -> BooleanVar (shared if reused)
+        self.plugin_vars = {}  # plugin name -> BooleanVar (shared if reused)
         self.group_sections = {}  # group key -> CollapsibleGroup
-        self.group_buttons = {}   # group key -> [(plugin name, Checkbutton)]
+        self.group_buttons = {}  # group key -> [(plugin name, Checkbutton)]
         stored = set(cfg["plugins"])
         known = set(cfg["known_plugins"])
         columns_frame = ttk.Frame(content)
@@ -1157,24 +1362,31 @@ class LauncherWindow:
         for group in self.display_groups:
             column = columns[1 if group.side == "backend" else 0]
             section = CollapsibleGroup(
-                column, group.title,
+                column,
+                group.title,
                 select_all_command=(
-                    None if group.side is None
-                    else lambda key=group.key: self._toggle_group(key)),
-                collapsed=group.key == "required")
+                    None
+                    if group.side is None
+                    else lambda key=group.key: self._toggle_group(key)
+                ),
+                collapsed=group.key == "required",
+            )
             section.frame.pack(fill="x", pady=2)
             buttons = []
             for plugin in group.plugins:
                 if group.side is None:
                     var = tk.BooleanVar(value=True)
                 else:
-                    var = self.plugin_vars.setdefault(plugin, tk.BooleanVar(
-                        value=plugin_enabled_by_default(plugin, stored, known)))
+                    var = self.plugin_vars.setdefault(
+                        plugin,
+                        tk.BooleanVar(
+                            value=plugin_enabled_by_default(plugin, stored, known)
+                        ),
+                    )
                     var.trace_add(
-                        "write",
-                        lambda *_a, key=group.key: self._sync_select_all(key))
-                button = ttk.Checkbutton(section.body, text=plugin,
-                                         variable=var)
+                        "write", lambda *_a, key=group.key: self._sync_select_all(key)
+                    )
+                button = ttk.Checkbutton(section.body, text=plugin, variable=var)
                 button.pack(anchor="w")
                 buttons.append((plugin, button))
             self.group_sections[group.key] = section
@@ -1185,14 +1397,20 @@ class LauncherWindow:
         ctx_box = ttk.LabelFrame(content, text="Contexts", padding=4)
         ctx_box.pack(fill="x", pady=2)
         self.ctx_auto_var = tk.BooleanVar(value=not cfg["contexts"])
-        self.ctx_vars = {name: tk.BooleanVar(value=name in cfg["contexts"])
-                         for name in ("redis_server", "dramatiq_workers")}
-        ttk.Checkbutton(ctx_box, text="Auto (recommended)",
-                        variable=self.ctx_auto_var,
-                        command=self._apply_ctx_mode).pack(anchor="w")
+        self.ctx_vars = {
+            name: tk.BooleanVar(value=name in cfg["contexts"])
+            for name in ("redis_server", "dramatiq_workers")
+        }
+        ttk.Checkbutton(
+            ctx_box,
+            text="Auto (recommended)",
+            variable=self.ctx_auto_var,
+            command=self._apply_ctx_mode,
+        ).pack(anchor="w")
         self.ctx_buttons = [
             ttk.Checkbutton(ctx_box, text=name, variable=var)
-            for name, var in self.ctx_vars.items()]
+            for name, var in self.ctx_vars.items()
+        ]
         for btn in self.ctx_buttons:
             btn.pack(anchor="w")
 
@@ -1200,9 +1418,10 @@ class LauncherWindow:
         ttk.Label(
             git_tab,
             text="Note: if you have external plugins installed, changing the "
-                 "pixi-microdrop repo (branch switch, pull, or reset) may "
-                 "require reinstalling those plugins.",
-            foreground="#b00").pack(anchor="w", pady=(0, 6))
+            "pixi-microdrop repo (branch switch, pull, or reset) may "
+            "require reinstalling those plugins.",
+            foreground="#b00",
+        ).pack(anchor="w", pady=(0, 6))
 
         # Repositories
         repo_box = ttk.LabelFrame(git_tab, text="Repositories", padding=4)
@@ -1212,64 +1431,97 @@ class LauncherWindow:
         self.update_pixi_var = tk.BooleanVar(value=cfg["auto_update_pixi_repo"])
         self.update_src_var = tk.BooleanVar(value=cfg["auto_update_src_repo"])
         install_dir = Path(cfg["install_dir"])
-        rows = (("pixi-microdrop", self.pixi_branch_var, self.update_pixi_var,
-                 install_dir, PIXI_REPO_URL),
-                ("Microdrop source", self.src_branch_var, self.update_src_var,
-                 install_dir / SRC_RELDIR, SRC_REPO_URL))
-        for row, (label, branch_var, update_var, repo_dir,
-                  repo_url) in enumerate(rows):
+        rows = (
+            (
+                "pixi-microdrop",
+                self.pixi_branch_var,
+                self.update_pixi_var,
+                install_dir,
+                PIXI_REPO_URL,
+            ),
+            (
+                "Microdrop source",
+                self.src_branch_var,
+                self.update_src_var,
+                install_dir / SRC_RELDIR,
+                SRC_REPO_URL,
+            ),
+        )
+        for row, (label, branch_var, update_var, repo_dir, repo_url) in enumerate(rows):
             ttk.Label(repo_box, text=f"{label} branch:").grid(
-                row=row, column=0, sticky="w")
-            branch_box = ttk.Combobox(repo_box, textvariable=branch_var,
-                                      state="readonly")
+                row=row, column=0, sticky="w"
+            )
+            branch_box = ttk.Combobox(
+                repo_box, textvariable=branch_var, state="readonly"
+            )
             branch_box.grid(row=row, column=1, padx=4)
             refresh_btn = ttk.Button(
-                repo_box, text=REFRESH_ICON, width=3,
-                command=lambda box=branch_box, box_repo_dir=repo_dir,
-                box_repo_url=repo_url: populate_branch_choices(
-                    box, box_repo_dir, box_repo_url))
+                repo_box,
+                text=REFRESH_ICON,
+                width=3,
+                command=lambda b=branch_box, d=repo_dir, u=repo_url: (
+                    populate_branch_choices(b, d, u)
+                ),
+            )
             refresh_btn.grid(row=row, column=2, sticky="w")
             Tooltip(refresh_btn, REFRESH_TOOLTIP)
             apply_btn = ttk.Button(
-                repo_box, text=APPLY_BRANCH_ICON, width=3,
-                command=lambda name=label, path=repo_dir,
-                var=branch_var: self._checkout_branch(name, path, var))
+                repo_box,
+                text=APPLY_BRANCH_ICON,
+                width=3,
+                command=lambda name=label, path=repo_dir, var=branch_var: (
+                    self._checkout_branch(name, path, var)
+                ),
+            )
             apply_btn.grid(row=row, column=3, sticky="w", padx=(0, 4))
             Tooltip(apply_btn, APPLY_BRANCH_TOOLTIP)
             populate_branch_choices(branch_box, repo_dir, repo_url)
-            ttk.Checkbutton(repo_box, text="update on launch",
-                            variable=update_var).grid(row=row, column=4)
+            ttk.Checkbutton(
+                repo_box, text="update on launch", variable=update_var
+            ).grid(row=row, column=4)
 
         # Repository maintenance — discard/stash local changes per repo
-        maint_box = ttk.LabelFrame(git_tab, text="Repository maintenance",
-                                   padding=4)
+        maint_box = ttk.LabelFrame(git_tab, text="Repository maintenance", padding=4)
         maint_box.pack(fill="x", anchor="n", pady=2)
-        maint_repos = (("pixi-microdrop", install_dir),
-                       ("Microdrop source", install_dir / SRC_RELDIR))
+        maint_repos = (
+            ("pixi-microdrop", install_dir),
+            ("Microdrop source", install_dir / SRC_RELDIR),
+        )
         for row, (label, repo_dir) in enumerate(maint_repos):
             ttk.Label(maint_box, text=f"{label}:").grid(
-                row=row, column=0, sticky="w", padx=(0, 4))
+                row=row, column=0, sticky="w", padx=(0, 4)
+            )
             ttk.Button(
-                maint_box, text="Reset (discard changes)",
+                maint_box,
+                text="Reset (discard changes)",
                 command=lambda name=label, path=repo_dir: self._git_maintenance(
-                    name, path, ["reset", "--hard"],
+                    name,
+                    path,
+                    ["reset", "--hard"],
                     confirm=f"Discard ALL uncommitted changes in {name} "
-                            f"(git reset --hard)?\n\nThis cannot be undone.")
+                    f"(git reset --hard)?\n\nThis cannot be undone.",
+                ),
             ).grid(row=row, column=1, padx=2, pady=1)
             ttk.Button(
-                maint_box, text="Stash",
+                maint_box,
+                text="Stash",
                 command=lambda name=label, path=repo_dir: self._git_maintenance(
-                    name, path, ["stash", "push", "--include-untracked"])
+                    name, path, ["stash", "push", "--include-untracked"]
+                ),
             ).grid(row=row, column=2, padx=2, pady=1)
             ttk.Button(
-                maint_box, text="Stash pop",
+                maint_box,
+                text="Stash pop",
                 command=lambda name=label, path=repo_dir: self._git_maintenance(
-                    name, path, ["stash", "pop"])
+                    name, path, ["stash", "pop"]
+                ),
             ).grid(row=row, column=3, padx=2, pady=1)
             ttk.Button(
-                maint_box, text="Pull",
+                maint_box,
+                text="Pull",
                 command=lambda name=label, path=repo_dir: self._git_maintenance(
-                    name, path, ["pull"])
+                    name, path, ["pull"]
+                ),
             ).grid(row=row, column=4, padx=2, pady=1)
         ttk.Label(git_tab, text="Git output:").pack(anchor="w", pady=(6, 0))
         self.git_log = LogPane(git_tab, height=8)
@@ -1280,39 +1532,59 @@ class LauncherWindow:
         self.worker_threads_var = tk.StringVar(value=str(cfg["worker_threads"]))
         self.worker_timeout_var = tk.StringVar(value=str(cfg["worker_timeout"]))
         self._validate_int_command = (
-            root.register(lambda text: text == "" or text.isdigit()), "%P")
+            root.register(lambda text: text == "" or text.isdigit()),
+            "%P",
+        )
 
         redis_section = CollapsibleGroup(server_tab, "Redis server")
         redis_section.frame.pack(fill="x", pady=2)
-        ttk.Label(redis_section.body,
-                  text="Connection for the Redis message server. Saved to "
-                       "src/redis_settings.json at launch; the app falls back "
-                       "to 127.0.0.1:6379 without it.",
-                  foreground="gray40", wraplength=560).pack(anchor="w")
+        ttk.Label(
+            redis_section.body,
+            text="Connection for the Redis message server. Saved to "
+            "src/redis_settings.json at launch; the app falls back "
+            "to 127.0.0.1:6379 without it.",
+            foreground="gray40",
+            wraplength=560,
+        ).pack(anchor="w")
         self._add_server_setting(
-            redis_section.body, "host (str):", self.redis_host_var,
-            "Hostname or IP address of the Redis server (localhost, LAN, "
-            "or cloud).")
+            redis_section.body,
+            "host (str):",
+            self.redis_host_var,
+            "Hostname or IP address of the Redis server (localhost, LAN, or cloud).",
+        )
         self._add_server_setting(
-            redis_section.body, "port (int):", self.redis_port_var,
-            "TCP port the Redis server listens on.", int_only=True)
+            redis_section.body,
+            "port (int):",
+            self.redis_port_var,
+            "TCP port the Redis server listens on.",
+            int_only=True,
+        )
 
         dramatiq_section = CollapsibleGroup(server_tab, "Dramatiq broker")
         dramatiq_section.frame.pack(fill="x", pady=2)
-        ttk.Label(dramatiq_section.body,
-                  text="Dramatiq worker options. Saved to "
-                       "src/dramatiq_settings.json at launch; the app falls "
-                       "back to 4 threads / 100 ms without it.",
-                  foreground="gray40", wraplength=560).pack(anchor="w")
+        ttk.Label(
+            dramatiq_section.body,
+            text="Dramatiq worker options. Saved to "
+            "src/dramatiq_settings.json at launch; the app falls "
+            "back to 4 threads / 100 ms without it.",
+            foreground="gray40",
+            wraplength=560,
+        ).pack(anchor="w")
         self._add_server_setting(
-            dramatiq_section.body, "worker_threads (int):",
+            dramatiq_section.body,
+            "worker_threads (int):",
             self.worker_threads_var,
-            "The number of worker threads to spawn.", int_only=True)
+            "The number of worker threads to spawn.",
+            int_only=True,
+        )
         self._add_server_setting(
-            dramatiq_section.body, "worker_timeout (int):",
+            dramatiq_section.body,
+            "worker_timeout (int):",
             self.worker_timeout_var,
             "The number of milliseconds workers should wake up after if the "
-            "queue is idle.", int_only=True)
+            "queue is idle.",
+            int_only=True,
+        )
 
         self._apply_gating()
         self._apply_ctx_mode()
@@ -1321,26 +1593,32 @@ class LauncherWindow:
 
     def _refresh_version_status(self):
         install_dir = Path(self.cfg["install_dir"])
-        self.version_var.set("   ".join(
-            f"{label}: {describe_checkout(repo_dir) or 'not found'}"
-            for label, repo_dir in (
-                ("pixi-microdrop", install_dir),
-                ("source", install_dir / SRC_RELDIR))))
+        self.version_var.set(
+            "   ".join(
+                f"{label}: {describe_checkout(repo_dir) or 'not found'}"
+                for label, repo_dir in (
+                    ("pixi-microdrop", install_dir),
+                    ("source", install_dir / SRC_RELDIR),
+                )
+            )
+        )
 
     def _refresh_shortcut_status(self):
         if self.profile is None:
             self.shortcut_status_var.set(
-                "default config — create a shortcut to save it as a profile")
+                "default config — create a shortcut to save it as a profile"
+            )
         elif shortcut_path(self.profile).exists():
             self.shortcut_status_var.set(
-                f"✓ desktop shortcut exists for '{self.profile}'")
+                f"✓ desktop shortcut exists for '{self.profile}'"
+            )
         else:
             self.shortcut_status_var.set(
-                f"no desktop shortcut for '{self.profile}' yet")
+                f"no desktop shortcut for '{self.profile}' yet"
+            )
 
     def _refresh_profiles(self):
-        self.profile_combo["values"] = (
-            [DEFAULT_PROFILE_LABEL] + list_profiles())
+        self.profile_combo["values"] = [DEFAULT_PROFILE_LABEL] + list_profiles()
         self.profile_var.set(self.profile or DEFAULT_PROFILE_LABEL)
         self._refresh_shortcut_status()
 
@@ -1357,19 +1635,23 @@ class LauncherWindow:
         self.frame.destroy()
         LauncherWindow(self.root, cfg, profile=profile)
 
-    def _add_server_setting(self, body, label_text, var, description,
-                            int_only=False):
+    def _add_server_setting(self, body, label_text, var, description, int_only=False):
         from tkinter import ttk
+
         row = ttk.Frame(body)
         row.pack(fill="x", pady=(4, 0))
         ttk.Label(row, text=label_text).pack(side="left")
-        entry_kwargs = ({"validate": "key",
-                         "validatecommand": self._validate_int_command}
-                        if int_only else {})
+        entry_kwargs = (
+            {"validate": "key", "validatecommand": self._validate_int_command}
+            if int_only
+            else {}
+        )
         ttk.Entry(row, textvariable=var, width=18, **entry_kwargs).pack(
-            side="left", padx=4)
-        ttk.Label(body, text=description, foreground="gray40",
-                  wraplength=560).pack(anchor="w", padx=(16, 0))
+            side="left", padx=4
+        )
+        ttk.Label(body, text=description, foreground="gray40", wraplength=560).pack(
+            anchor="w", padx=(16, 0)
+        )
 
     def _group_active(self, group):
         """Whether *group*'s plugins count toward the launch selection."""
@@ -1421,7 +1703,8 @@ class LauncherWindow:
         buttons = self.group_buttons[group_key]
         section.select_all_var.set(
             bool(buttons)
-            and all(self.plugin_vars[plugin].get() for plugin, _b in buttons))
+            and all(self.plugin_vars[plugin].get() for plugin, _b in buttons)
+        )
 
     def _apply_ctx_mode(self):
         state = "disabled" if self.ctx_auto_var.get() else "normal"
@@ -1441,9 +1724,14 @@ class LauncherWindow:
 
     def _offered_plugins(self):
         """Every optional plugin the checkout offers, across all groups."""
-        return list(dict.fromkeys(
-            plugin for group in self.display_groups if group.side is not None
-            for plugin in group.plugins))
+        return list(
+            dict.fromkeys(
+                plugin
+                for group in self.display_groups
+                if group.side is not None
+                for plugin in group.plugins
+            )
+        )
 
     @staticmethod
     def _int_setting(var, default):
@@ -1457,20 +1745,25 @@ class LauncherWindow:
             device=self.device_var.get(),
             plugins=self._selected_plugins(),
             known_plugins=self._offered_plugins(),
-            contexts=[] if self.ctx_auto_var.get() else [
-                name for name, var in self.ctx_vars.items() if var.get()],
+            contexts=[]
+            if self.ctx_auto_var.get()
+            else [name for name, var in self.ctx_vars.items() if var.get()],
             pixi_repo_branch=self.pixi_branch_var.get().strip() or "master",
             src_repo_branch=self.src_branch_var.get().strip() or "main",
             auto_update_pixi_repo=self.update_pixi_var.get(),
             auto_update_src_repo=self.update_src_var.get(),
             redis_host=self.redis_host_var.get().strip()
-                or DEFAULT_CONFIG["redis_host"],
+            or DEFAULT_CONFIG["redis_host"],
             redis_port=self._int_setting(
-                self.redis_port_var, DEFAULT_CONFIG["redis_port"]),
+                self.redis_port_var, DEFAULT_CONFIG["redis_port"]
+            ),
             worker_threads=self._int_setting(
-                self.worker_threads_var, DEFAULT_CONFIG["worker_threads"]),
+                self.worker_threads_var, DEFAULT_CONFIG["worker_threads"]
+            ),
             worker_timeout=self._int_setting(
-                self.worker_timeout_var, DEFAULT_CONFIG["worker_timeout"]))
+                self.worker_timeout_var, DEFAULT_CONFIG["worker_timeout"]
+            ),
+        )
         save_config(self.cfg, self.profile)
 
     def _checkout_branch(self, name, repo_dir, branch_var):
@@ -1491,7 +1784,8 @@ class LauncherWindow:
         """Run maintenance git commands against *repo_dir* in order, streaming
         to the Git-tab output pane on a worker thread."""
         if confirm and not self.messagebox.askyesno(
-                "Confirm", confirm, parent=self.root):
+            "Confirm", confirm, parent=self.root
+        ):
             return
         if not Path(repo_dir).is_dir():
             self.git_log(f"[{name}] {repo_dir} not found — is it installed?")
@@ -1508,12 +1802,15 @@ class LauncherWindow:
 
     def _launch(self):
         from tkinter import ttk
+
         self._save()
         if not self.cfg["plugins"]:
             self.messagebox.showerror(
                 "Microdrop",
                 "No plugins selected — enable at least one plugin for the "
-                "chosen mode before launching.", parent=self.root)
+                "chosen mode before launching.",
+                parent=self.root,
+            )
             return
         self.root.configure(menu="")
         self.frame.destroy()
@@ -1521,21 +1818,23 @@ class LauncherWindow:
 
         launch_frame = ttk.Frame(self.root, padding=12)
         launch_frame.pack(fill="both", expand=True)
-        ttk.Button(launch_frame, text="← Back to configuration",
-                   command=lambda: self._back_to_config(launch_frame)).pack(
-            anchor="w")
+        ttk.Button(
+            launch_frame,
+            text="← Back to configuration",
+            command=lambda: self._back_to_config(launch_frame),
+        ).pack(anchor="w")
         ttk.Label(
             launch_frame,
             text="Microdrop runs in a separate process; closing it or coming "
-                 "back here does not stop it.",
-            foreground="gray40").pack(anchor="w", pady=(2, 4))
+            "back here does not stop it.",
+            foreground="gray40",
+        ).pack(anchor="w", pady=(2, 4))
         log = LogPane(launch_frame)
 
         def worker():
             if not do_launch(self.cfg, log):
                 mark_preinstall_needed()
-                log("Install directory missing — run this script again "
-                    "to reinstall.")
+                log("Install directory missing — run this script again to reinstall.")
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1550,21 +1849,26 @@ class LauncherWindow:
             name = self.simpledialog.askstring(
                 "Shortcut & profile name",
                 "Name for this config profile and its desktop shortcut:",
-                initialvalue=name, parent=self.root)
+                initialvalue=name,
+                parent=self.root,
+            )
             if not name:
                 return
             name = sanitize_profile_name(name)
             if not name:
                 self.messagebox.showerror(
-                    "Invalid name", "Please enter a valid profile name.",
-                    parent=self.root)
+                    "Invalid name",
+                    "Please enter a valid profile name.",
+                    parent=self.root,
+                )
                 continue
             existing = shortcut_path(name)
             if existing.exists() and not self.messagebox.askyesno(
-                    "Shortcut exists",
-                    f"'{existing.name}' already exists on the Desktop.\n\n"
-                    "Replace it? (No — choose another name)",
-                    parent=self.root):
+                "Shortcut exists",
+                f"'{existing.name}' already exists on the Desktop.\n\n"
+                "Replace it? (No — choose another name)",
+                parent=self.root,
+            ):
                 continue
             break
         # Save the current configuration as this named profile, then point a
@@ -1574,15 +1878,15 @@ class LauncherWindow:
         try:
             created = create_shortcut(self.cfg, name, profile=name)
         except (OSError, subprocess.CalledProcessError) as exc:
-            self.messagebox.showerror(
-                "Shortcut failed", str(exc), parent=self.root)
+            self.messagebox.showerror("Shortcut failed", str(exc), parent=self.root)
             return
         self._refresh_profiles()
         self.messagebox.showinfo(
             "Shortcut created",
             f"Created {created}.\nIt launches the '{name}' profile. Edit this "
             "profile here and recreate the shortcut to update it.",
-            parent=self.root)
+            parent=self.root,
+        )
 
     def _save_close(self):
         self._save()
@@ -1591,6 +1895,7 @@ class LauncherWindow:
 
 def run_gui(cfg, profile=None):
     import tkinter as tk
+
     root = tk.Tk()
     attach_update_notification(root)
 
@@ -1606,15 +1911,20 @@ def run_gui(cfg, profile=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Standalone Microdrop setup & launcher.")
+        description="Standalone Microdrop setup & launcher."
+    )
     parser.add_argument(
-        "--launch", action="store_true",
+        "--launch",
+        action="store_true",
         help="Launch the saved configuration without the GUI (what desktop "
-             "shortcuts run).")
+        "shortcuts run).",
+    )
     parser.add_argument(
-        "--profile", metavar="NAME",
+        "--profile",
+        metavar="NAME",
         help="Named config profile to load (per-shortcut configs). Falls back "
-             "to the global config when the profile is missing.")
+        "to the global config when the profile is missing.",
+    )
     args = parser.parse_args(argv)
 
     cfg = load_config(args.profile)
