@@ -1465,8 +1465,10 @@ class PreInstallWizard:
 class LauncherWindow:
     """Stage 2: mode/device/plugin/context selection, repo settings, actions.
 
+    The simple view shows only the device picker; the Advanced checkbox
+    reveals the fine-grained settings and switches the launch to them.
     Plugin groups are gated by launch mode (frontend / backend / dual) and
-    device; Options > Advanced mode unlocks every gated checkbox.
+    device; "Toggle every plugin" unlocks every gated checkbox.
     """
 
     def __init__(self, root, cfg, profile=None):
@@ -1493,17 +1495,10 @@ class LauncherWindow:
             parsed = {name: [] for name in PLUGIN_CONSTS_VARS}
         self.display_groups = build_display_groups(parsed)
 
-        # Options menu — advanced mode unlocks every gated checkbox
+        # "Toggle every plugin" unlocks every gated checkbox (config key kept
+        # as advanced_mode for compatibility).
         self.advanced_var = tk.BooleanVar(value=cfg["advanced_mode"])
-        menubar = tk.Menu(root)
-        options_menu = tk.Menu(menubar, tearoff=0)
-        options_menu.add_checkbutton(
-            label="Advanced mode (toggle every plugin)",
-            variable=self.advanced_var,
-            command=self._apply_gating,
-        )
-        menubar.add_cascade(label="Options", menu=options_menu)
-        root.configure(menu=menubar)
+        self.advanced_settings_var = tk.BooleanVar(value=cfg["advanced_settings"])
 
         # Actions stay pinned at the bottom; the tabs fill everything above.
         buttons_row = ttk.Frame(self.frame)
@@ -1544,8 +1539,38 @@ class LauncherWindow:
             side="top", anchor="w"
         )
 
-        notebook = ttk.Notebook(self.frame)
-        notebook.pack(fill="both", expand=True, pady=6)
+        # Device — shared by both views.
+        self.device_var = tk.StringVar(value=cfg["device"])
+        device_row = ttk.Frame(self.frame)
+        device_row.pack(side="top", fill="x", pady=(6, 0))
+        ttk.Label(device_row, text="Device:").pack(side="left")
+        for device in ("dropbot", "portable", "opendrop", "mock"):
+            ttk.Radiobutton(
+                device_row,
+                text=device,
+                value=device,
+                variable=self.device_var,
+                command=self._switch_device,
+            ).pack(side="left", padx=4)
+
+        # Advanced — reveals the fine-grained settings, which then drive the
+        # launch; unticked, the launch is plain `pixi run microdrop`.
+        ttk.Checkbutton(
+            self.frame,
+            text="Advanced: lean launch (pick plugins)",
+            variable=self.advanced_settings_var,
+            command=self._apply_view,
+        ).pack(side="top", anchor="w", pady=(6, 0))
+        ttk.Label(
+            self.frame,
+            text="Recommended: leave this off. The simple launch always loads "
+            "the current full plugin set. Advanced is only for a lean, "
+            "hand-picked plugin set that may need updating as MicroDrop changes.",
+            foreground="gray40",
+            wraplength=760,
+        ).pack(side="top", anchor="w", padx=(20, 0))
+
+        self.notebook = notebook = ttk.Notebook(self.frame)
         launch_tab = ttk.Frame(notebook)
         notebook.add(launch_tab, text="Launch")
         git_tab = ttk.Frame(notebook, padding=8)
@@ -1571,19 +1596,12 @@ class LauncherWindow:
                 command=self._apply_gating,
             ).pack(side="left", padx=4)
 
-        # Device
-        self.device_var = tk.StringVar(value=cfg["device"])
-        device_row = ttk.Frame(content)
-        device_row.pack(fill="x", pady=(0, 4))
-        ttk.Label(device_row, text="Device:").pack(side="left")
-        for device in ("dropbot", "portable", "opendrop", "mock"):
-            ttk.Radiobutton(
-                device_row,
-                text=device,
-                value=device,
-                variable=self.device_var,
-                command=self._switch_device,
-            ).pack(side="left", padx=4)
+        ttk.Checkbutton(
+            content,
+            text="Toggle every plugin",
+            variable=self.advanced_var,
+            command=self._apply_gating,
+        ).pack(anchor="w", pady=(0, 4))
 
         # Plugin groups: frontend column | backend column, collapsible,
         # each with a select-all checkbox.
@@ -1827,6 +1845,7 @@ class LauncherWindow:
             int_only=True,
         )
 
+        self._apply_view()
         self._apply_gating()
         self._apply_ctx_mode()
         self._refresh_shortcut_status()
@@ -1872,7 +1891,6 @@ class LauncherWindow:
         self._rebuild(load_config(target), target)
 
     def _rebuild(self, cfg, profile):
-        self.root.configure(menu="")
         self.frame.destroy()
         LauncherWindow(self.root, cfg, profile=profile)
 
@@ -1908,6 +1926,13 @@ class LauncherWindow:
                 for plugin, _button in self.group_buttons[group.key]:
                     self.plugin_vars[plugin].set(True)
         self._apply_gating()
+
+    def _apply_view(self):
+        """Show the fine-grained settings only while Advanced is ticked."""
+        if self.advanced_settings_var.get():
+            self.notebook.pack(fill="both", expand=True, pady=6)
+        else:
+            self.notebook.pack_forget()
 
     def _apply_gating(self):
         advanced = self.advanced_var.get()
@@ -1975,6 +2000,7 @@ class LauncherWindow:
             selected = []
 
         self.cfg.update(
+            advanced_settings=self.advanced_settings_var.get(),
             mode=self.mode_var.get(),
             advanced_mode=self.advanced_var.get(),
             device=self.device_var.get(),
@@ -2039,7 +2065,8 @@ class LauncherWindow:
         from tkinter import ttk
 
         self._save()
-        if not self._selected_plugins():
+
+        if self.advanced_settings_var.get() and not self._selected_plugins():
             self.messagebox.showerror(
                 "Microdrop",
                 "No plugins selected — enable at least one plugin for the "
@@ -2047,7 +2074,7 @@ class LauncherWindow:
                 parent=self.root,
             )
             return
-        self.root.configure(menu="")
+
         self.frame.destroy()
         self.root.title("Microdrop — launching…")
 
