@@ -28,6 +28,8 @@ a = Analysis(
     datas=[
         ('launch_microdrop.ps1', '.'),
         ('launch_microdrop.sh', '.'),
+        ('launch_microdrop_simple.ps1', '.'),
+        ('launch_microdrop_simple.sh', '.'),
         (_version_file, '.'),
     ],
     hiddenimports=[],

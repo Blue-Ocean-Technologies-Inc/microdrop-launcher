@@ -61,6 +61,10 @@ DEFAULT_CONFIG = {
     "auto_update_pixi_repo": False,
     "auto_update_src_repo": False,
     "device": "dropbot",
+    # False = simple launch (``pixi run microdrop --device <device>``); True =
+    # the fine-grained launch below. Stored per profile; a file saved without
+    # it opens simple (see load_config).
+    "advanced_settings": False,
     "mode": "dual",  # "dual" | "frontend" | "backend"
     "advanced_mode": False,
     "redis_host": "127.0.0.1",
@@ -379,15 +383,26 @@ def load_config(profile=None):
 
     A missing/corrupt profile falls back to just the global config, so a
     deleted profile still launches with sensible machine-global settings.
+
+    Each file carries its own ``advanced_settings``: one saved before the
+    key existed launches simple whatever mode or plugins it stored, and a
+    profile never inherits the global file's choice. The fine-grained fields
+    load untouched, so ticking Advanced brings them back.
     """
     cfg = dict(DEFAULT_CONFIG)
+
     for path in (config_path(), profile_path(profile) if profile else None):
         if path is None:
             continue
+
         try:
-            cfg.update(json.loads(path.read_text(encoding="utf-8")))
+            loaded = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            pass  # missing/corrupt -> keep what we have (=> pre-install runs)
+            continue  # missing/corrupt -> keep what we have (=> pre-install runs)
+
+        cfg.update(loaded)
+        cfg["advanced_settings"] = loaded.get("advanced_settings", False)
+
     return cfg
 
 
@@ -650,11 +665,14 @@ def describe_checkout(repo_dir):
     return f"{branch} @ {described}" if described else branch
 
 
-def git_update_repo(repo_dir, branch, log):
+def git_update_repo(repo_dir, branch, log, fast_forward_only=False):
     """Best-effort checkout of *branch* (resolves detached HEAD) then pull.
 
     Failures are warnings — launching with the current checkout beats not
-    launching (matches the old run_microdrop.ps1 behavior).
+    launching (matches the old run_microdrop.ps1 behavior). Neither step
+    overwrites local changes: git refuses a checkout or pull that would.
+    With *fast_forward_only*, a branch that has diverged from its remote is
+    left as it is instead of being merged or rebased.
     """
     code, current = run_capture(["git", "branch", "--show-current"], cwd=repo_dir)
     if code != 0:
@@ -667,7 +685,9 @@ def git_update_repo(repo_dir, branch, log):
                 f"Warning: could not check out '{branch}' in {repo_dir}; "
                 f"staying on '{current or 'detached HEAD'}'."
             )
-    if run_streamed(["git", "pull"], log, cwd=repo_dir) != 0:
+    pull = ["git", "pull", "--ff-only"] if fast_forward_only else ["git", "pull"]
+
+    if run_streamed(pull, log, cwd=repo_dir) != 0:
         log(f"Warning: could not pull {repo_dir}; continuing with current state.")
 
 
@@ -719,8 +739,41 @@ def build_run_args(cfg, plugins):
     return run_args
 
 
+def simple_run_args(cfg):
+    """Arguments the simple launch passes to ``pixi run microdrop``.
+
+    No plugin list: the source's own entry point loads its full plugin set.
+    """
+    return ["--device", cfg["device"]]
+
+
+def launch_script_name(advanced, is_windows=IS_WINDOWS):
+    """Launch script for the fine-grained (*advanced*) or the simple launch."""
+    stem = "launch_microdrop" if advanced else "launch_microdrop_simple"
+
+    return f"{stem}.{'ps1' if is_windows else 'sh'}"
+
+
+def build_launch_command(launch_script, install_dir, run_args, is_windows=IS_WINDOWS):
+    """Command line that runs *launch_script* against *install_dir*."""
+    if is_windows:
+        return [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(launch_script),
+            "-InstallDir",
+            str(install_dir),
+            *run_args,
+        ]
+
+    return ["bash", str(launch_script), "--install-dir", str(install_dir), *run_args]
+
+
 def launcher_assets_dir():
-    """Directory that ships the launch_microdrop.* scripts and icon.
+    """Directory that ships the launch_microdrop* scripts and icon.
 
     For a frozen PyInstaller build this is the bundle dir (``sys._MEIPASS``);
     running as a plain script it is the script's own folder. ``do_launch``
@@ -731,11 +784,50 @@ def launcher_assets_dir():
     return Path(__file__).resolve().parent
 
 
+def find_launch_script(script_name, install_dir):
+    """Launch script shipped with this tool, else a copy inside the clone.
+
+    The copy in the clone is the legacy layout. Either way the script is told
+    the install dir explicitly, so it does not depend on its own location.
+    """
+    launch_script = launcher_assets_dir() / script_name
+
+    if not launch_script.exists():
+        launch_script = Path(install_dir) / script_name
+
+    return launch_script
+
+
+def advanced_run_args(cfg, install_dir, log):
+    """microdrop.py arguments for the fine-grained launch.
+
+    Parsed after the repo updates so the plugin selection matches the
+    checkout that is about to run.
+    """
+    consts = load_plugin_consts(install_dir)
+    groups = None if consts is None else build_display_groups(consts)
+    plugins = launch_plugin_names(cfg, groups, log)
+
+    if plugins and consts is not None:
+        plugins = drop_unsupported_deferred_plugins(
+            plugins, consts["DEFERRED_FRONTEND_PLUGINS"], install_dir, log
+        )
+
+    return build_run_args(cfg, plugins)
+
+
 def do_launch(cfg, log=print):
-    """Run the saved configuration. False if the install dir is gone."""
+    """Run the saved configuration. False if the install dir is gone.
+
+    The simple launch runs ``pixi run microdrop --device <device>``; the
+    fine-grained one (``advanced_settings``) runs ``pixi run
+    microdrop_launch`` with the saved mode, plugins and contexts.
+    """
     install_dir = Path(cfg["install_dir"])
     if not (install_dir / PIXI_PROJECT_RELDIR).is_dir():
         return False
+
+    advanced = cfg["advanced_settings"]
 
     pixi = find_pixi()
     if pixi:
@@ -752,10 +844,17 @@ def do_launch(cfg, log=print):
     else:
         log("Warning: pixi not found; the launcher script will report the error.")
 
-    if cfg["auto_update_pixi_repo"]:
-        git_update_repo(install_dir, cfg["pixi_repo_branch"], log)
-    if cfg["auto_update_src_repo"]:
-        git_update_repo(install_dir / SRC_RELDIR, cfg["src_repo_branch"], log)
+    if not advanced:
+        # Keeps the env and lockfile current. The source checkout is left to
+        # the app's own Updates feature, which moves it to the newest release.
+        git_update_repo(
+            install_dir, cfg["pixi_repo_branch"], log, fast_forward_only=True
+        )
+    else:
+        if cfg["auto_update_pixi_repo"]:
+            git_update_repo(install_dir, cfg["pixi_repo_branch"], log)
+        if cfg["auto_update_src_repo"]:
+            git_update_repo(install_dir / SRC_RELDIR, cfg["src_repo_branch"], log)
 
     for label, repo_dir in (
         ("pixi-microdrop", install_dir),
@@ -767,41 +866,13 @@ def do_launch(cfg, log=print):
 
     write_server_settings(cfg, log)
 
-    # Prefer the launch script shipped with this tool (repo/bundle); fall back
-    # to a copy inside the clone (legacy layout). Either way the script is told
-    # the install dir explicitly, so it no longer depends on its own location.
-    script_name = "launch_microdrop.ps1" if IS_WINDOWS else "launch_microdrop.sh"
-    launch_script = launcher_assets_dir() / script_name
-    if not launch_script.exists():
-        launch_script = install_dir / script_name
+    launch_script = find_launch_script(launch_script_name(advanced), install_dir)
+    run_args = (
+        advanced_run_args(cfg, install_dir, log) if advanced else simple_run_args(cfg)
+    )
 
-    # Parsed after the auto-updates so the selection matches the checkout
-    # that is about to run.
-    consts = load_plugin_consts(install_dir)
-    groups = None if consts is None else build_display_groups(consts)
-    plugins = launch_plugin_names(cfg, groups, log)
+    run_streamed(build_launch_command(launch_script, install_dir, run_args), log)
 
-    if plugins and consts is not None:
-        plugins = drop_unsupported_deferred_plugins(
-            plugins, consts["DEFERRED_FRONTEND_PLUGINS"], install_dir, log
-        )
-
-    run_args = build_run_args(cfg, plugins)
-    if IS_WINDOWS:
-        cmd = [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(launch_script),
-            "-InstallDir",
-            str(install_dir),
-            *run_args,
-        ]
-    else:
-        cmd = ["bash", str(launch_script), "--install-dir", str(install_dir), *run_args]
-    run_streamed(cmd, log)
     return True
 
 
@@ -1394,8 +1465,10 @@ class PreInstallWizard:
 class LauncherWindow:
     """Stage 2: mode/device/plugin/context selection, repo settings, actions.
 
+    The simple view shows only the device picker; the Advanced checkbox
+    reveals the fine-grained settings and switches the launch to them.
     Plugin groups are gated by launch mode (frontend / backend / dual) and
-    device; Options > Advanced mode unlocks every gated checkbox.
+    device; "Toggle every plugin" unlocks every gated checkbox.
     """
 
     def __init__(self, root, cfg, profile=None):
@@ -1422,17 +1495,10 @@ class LauncherWindow:
             parsed = {name: [] for name in PLUGIN_CONSTS_VARS}
         self.display_groups = build_display_groups(parsed)
 
-        # Options menu — advanced mode unlocks every gated checkbox
+        # "Toggle every plugin" unlocks every gated checkbox (config key kept
+        # as advanced_mode for compatibility).
         self.advanced_var = tk.BooleanVar(value=cfg["advanced_mode"])
-        menubar = tk.Menu(root)
-        options_menu = tk.Menu(menubar, tearoff=0)
-        options_menu.add_checkbutton(
-            label="Advanced mode (toggle every plugin)",
-            variable=self.advanced_var,
-            command=self._apply_gating,
-        )
-        menubar.add_cascade(label="Options", menu=options_menu)
-        root.configure(menu=menubar)
+        self.advanced_settings_var = tk.BooleanVar(value=cfg["advanced_settings"])
 
         # Actions stay pinned at the bottom; the tabs fill everything above.
         buttons_row = ttk.Frame(self.frame)
@@ -1473,8 +1539,38 @@ class LauncherWindow:
             side="top", anchor="w"
         )
 
-        notebook = ttk.Notebook(self.frame)
-        notebook.pack(fill="both", expand=True, pady=6)
+        # Device — shared by both views.
+        self.device_var = tk.StringVar(value=cfg["device"])
+        device_row = ttk.Frame(self.frame)
+        device_row.pack(side="top", fill="x", pady=(6, 0))
+        ttk.Label(device_row, text="Device:").pack(side="left")
+        for device in ("dropbot", "portable", "opendrop", "mock"):
+            ttk.Radiobutton(
+                device_row,
+                text=device,
+                value=device,
+                variable=self.device_var,
+                command=self._switch_device,
+            ).pack(side="left", padx=4)
+
+        # Advanced — reveals the fine-grained settings, which then drive the
+        # launch; unticked, the launch is plain `pixi run microdrop`.
+        ttk.Checkbutton(
+            self.frame,
+            text="Advanced: lean launch (pick plugins)",
+            variable=self.advanced_settings_var,
+            command=self._apply_view,
+        ).pack(side="top", anchor="w", pady=(6, 0))
+        ttk.Label(
+            self.frame,
+            text="Recommended: leave this off. The simple launch always loads "
+            "the current full plugin set. Advanced is only for a lean, "
+            "hand-picked plugin set that may need updating as MicroDrop changes.",
+            foreground="gray40",
+            wraplength=760,
+        ).pack(side="top", anchor="w", padx=(20, 0))
+
+        self.notebook = notebook = ttk.Notebook(self.frame)
         launch_tab = ttk.Frame(notebook)
         notebook.add(launch_tab, text="Launch")
         git_tab = ttk.Frame(notebook, padding=8)
@@ -1500,19 +1596,12 @@ class LauncherWindow:
                 command=self._apply_gating,
             ).pack(side="left", padx=4)
 
-        # Device
-        self.device_var = tk.StringVar(value=cfg["device"])
-        device_row = ttk.Frame(content)
-        device_row.pack(fill="x", pady=(0, 4))
-        ttk.Label(device_row, text="Device:").pack(side="left")
-        for device in ("dropbot", "portable", "opendrop", "mock"):
-            ttk.Radiobutton(
-                device_row,
-                text=device,
-                value=device,
-                variable=self.device_var,
-                command=self._switch_device,
-            ).pack(side="left", padx=4)
+        ttk.Checkbutton(
+            content,
+            text="Toggle every plugin",
+            variable=self.advanced_var,
+            command=self._apply_gating,
+        ).pack(anchor="w", pady=(0, 4))
 
         # Plugin groups: frontend column | backend column, collapsible,
         # each with a select-all checkbox.
@@ -1756,6 +1845,7 @@ class LauncherWindow:
             int_only=True,
         )
 
+        self._apply_view()
         self._apply_gating()
         self._apply_ctx_mode()
         self._refresh_shortcut_status()
@@ -1801,7 +1891,6 @@ class LauncherWindow:
         self._rebuild(load_config(target), target)
 
     def _rebuild(self, cfg, profile):
-        self.root.configure(menu="")
         self.frame.destroy()
         LauncherWindow(self.root, cfg, profile=profile)
 
@@ -1837,6 +1926,13 @@ class LauncherWindow:
                 for plugin, _button in self.group_buttons[group.key]:
                     self.plugin_vars[plugin].set(True)
         self._apply_gating()
+
+    def _apply_view(self):
+        """Show the fine-grained settings only while Advanced is ticked."""
+        if self.advanced_settings_var.get():
+            self.notebook.pack(fill="both", expand=True, pady=6)
+        else:
+            self.notebook.pack_forget()
 
     def _apply_gating(self):
         advanced = self.advanced_var.get()
@@ -1904,6 +2000,7 @@ class LauncherWindow:
             selected = []
 
         self.cfg.update(
+            advanced_settings=self.advanced_settings_var.get(),
             mode=self.mode_var.get(),
             advanced_mode=self.advanced_var.get(),
             device=self.device_var.get(),
@@ -1968,7 +2065,8 @@ class LauncherWindow:
         from tkinter import ttk
 
         self._save()
-        if not self._selected_plugins():
+
+        if self.advanced_settings_var.get() and not self._selected_plugins():
             self.messagebox.showerror(
                 "Microdrop",
                 "No plugins selected — enable at least one plugin for the "
@@ -1976,7 +2074,7 @@ class LauncherWindow:
                 parent=self.root,
             )
             return
-        self.root.configure(menu="")
+
         self.frame.destroy()
         self.root.title("Microdrop — launching…")
 
