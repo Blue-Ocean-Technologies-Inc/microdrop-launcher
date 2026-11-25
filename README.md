@@ -38,12 +38,25 @@ clones [`pixi-microdrop`](https://github.com/Blue-Ocean-Technologies-Inc/pixi-mi
 (with the Microdrop source submodule) into a chosen install directory, and
 prefetches the environment.
 
-**Stage 2 — launcher:** a tabbed GUI to pick the launch **mode**
-(frontend / backend / dual), **device** (dropbot / portable / opendrop / mock), and
-per-group plugins; manage repo branches and git maintenance (pull / stash /
-reset); and edit server settings (Redis host/port, Dramatiq worker
-threads/timeout). It can save named **config profiles** and create desktop
-shortcuts, each launching its own profile via `--launch --profile <name>`.
+**Stage 2 — launcher:** by default a simple view: pick the **device**
+(dropbot / portable / opendrop / mock) and launch. A simple launch fast-forwards
+the `pixi-microdrop` checkout and runs `pixi run microdrop --device <device>`,
+the source's own entry point, so it always loads the current release's full
+plugin set; the app's own Updates feature keeps the source checkout on the
+newest release. This is the recommended launch.
+
+Ticking **Advanced: lean launch (pick plugins)** reveals the fine-grained tabs:
+launch **mode** (frontend / backend / dual), per-group plugins and contexts;
+repo branches and git maintenance (pull / stash / reset); and server settings
+(Redis host/port, Dramatiq worker threads/timeout). An advanced launch runs
+`pixi run microdrop_launch` with exactly that selection, which may need
+updating as Microdrop changes. Configs saved before this choice existed open
+in the simple view, with their fine-grained settings kept for when Advanced
+is ticked.
+
+Both views can save named **config profiles** (each remembers its own view)
+and create desktop shortcuts, each launching its own profile via
+`--launch --profile <name>`.
 
 ## Usage
 
@@ -59,8 +72,9 @@ python microdrop_setup.py --launch [--profile <name>]
 
 The launcher is location-independent. It stores the chosen install directory in
 its config and resolves everything (repo tree, settings files, icons, the
-`launch_microdrop.*` scripts) against it. At launch it invokes the bundled
-`launch_microdrop.ps1` / `.sh` and passes the install dir explicitly
+`launch_microdrop*` scripts) against it. At launch it invokes the bundled
+`launch_microdrop_simple.ps1` / `.sh` (simple view) or `launch_microdrop.ps1` /
+`.sh` (Advanced) and passes the install dir explicitly
 (`-InstallDir` / `--install-dir`), so it does not need to live inside the
 `pixi-microdrop` checkout.
 
