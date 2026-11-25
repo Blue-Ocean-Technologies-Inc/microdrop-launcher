@@ -1,3 +1,10 @@
+## v0.9.2 (2026-11-25)
+
+### Fix
+
+- skip deferred plugins an outdated microdrop.py rejects
+- launch configs from launchers before v0.9.0 in bulk
+
 ## v0.9.1 (2026-11-25)
 
 ### Fix
