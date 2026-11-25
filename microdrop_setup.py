@@ -285,7 +285,9 @@ def launch_plugin_names(cfg, groups, log=print):
     a config saved with every plugin ticked launches the full default set
     even after the checkout added, moved or removed plugins, and a name the
     checkout no longer offers is dropped rather than rejected by
-    microdrop.py.
+    microdrop.py. A config with no *known_plugins* was saved by a launcher
+    before v0.9.0, which always stored the full ticked list, so it counts
+    as every plugin ticked.
     """
     stored = list(cfg["plugins"])
 
@@ -299,7 +301,7 @@ def launch_plugin_names(cfg, groups, log=print):
         for group in groups
         if plugin_group_active(group, mode, device, advanced)
         for plugin in group.plugins
-        if plugin_enabled_by_default(plugin, stored_set, known)
+        if not known or plugin_enabled_by_default(plugin, stored_set, known)
     ]
 
     if selects_full_default_set(groups, enabled, mode, device, advanced):
