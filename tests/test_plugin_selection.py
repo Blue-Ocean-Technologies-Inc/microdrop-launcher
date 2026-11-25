@@ -186,6 +186,52 @@ class TestLaunchPluginNames(unittest.TestCase):
             ms.build_run_args(cfg, ["TasksPlugin"]),
         )
 
+    def test_config_saved_before_known_plugins_is_the_full_default_set(self):
+        # Launchers before v0.9.0 recorded no known_plugins; the checkout has
+        # since added UserHelpPlugin, which the old list therefore lacks.
+        stored = [p for p in ALL_DROPBOT_PLUGINS if p != "UserHelpPlugin"]
+
+        self.assertEqual([], self.launch_names(make_cfg(stored)))
+        self.assertEqual(stored, self.launch_names(make_cfg(stored, mode="frontend")))
+
+
+class TestUnsupportedDeferredPlugins(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.install_dir = Path(tmp.name)
+        self.entry_path = self.install_dir / ms.MICRODROP_ENTRY_RELPATH
+        self.entry_path.parent.mkdir(parents=True)
+        self.messages = []
+
+    def drop_deferred(self, plugins):
+        return ms.drop_unsupported_deferred_plugins(
+            plugins,
+            ["ImageViewerPlugin", "UserHelpPlugin"],
+            self.install_dir,
+            self.messages.append,
+        )
+
+    def test_outdated_microdrop_entry_drops_deferred_names(self):
+        self.entry_path.write_text("OPTIONAL_PLUGINS = {}\n", encoding="utf-8")
+
+        self.assertEqual(
+            ["MicrodropPlugin"],
+            self.drop_deferred(["MicrodropPlugin", "ImageViewerPlugin"]),
+        )
+        self.assertEqual(1, len(self.messages))
+        self.assertIn("pixi-microdrop update", self.messages[0])
+
+    def test_updated_microdrop_entry_keeps_deferred_names(self):
+        self.entry_path.write_text(
+            "from examples.plugin_consts import DEFERRED_FRONTEND_PLUGINS\n",
+            encoding="utf-8",
+        )
+        plugins = ["MicrodropPlugin", "ImageViewerPlugin"]
+
+        self.assertEqual(plugins, self.drop_deferred(plugins))
+        self.assertEqual([], self.messages)
+
 
 if __name__ == "__main__":
     unittest.main()
