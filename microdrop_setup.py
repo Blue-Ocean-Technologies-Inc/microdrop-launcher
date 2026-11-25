@@ -78,6 +78,9 @@ DEFAULT_CONFIG = {
 PLUGIN_CONSTS_VARS = (
     "REQUIRED_PLUGINS",
     "FRONTEND_PLUGINS",
+    # Frontend plugins the app loads after its window is up (Microdrop
+    # v1.48.0+); entries are DeferredPlugin(spec="module:ClassName", ...).
+    "DEFERRED_FRONTEND_PLUGINS",
     "DROPBOT_FRONTEND_PLUGINS",
     "PORTABLE_DROPBOT_FRONTEND_PLUGINS",
     "OPENDROP_FRONTEND_PLUGINS",
@@ -131,6 +134,9 @@ def build_display_groups(parsed):
         p for p in frontend if PROTOCOL_PLUGIN_NAME_MARKER in p and p not in mandatory
     ]
     recommended = [p for p in frontend if p not in mandatory and p not in protocol]
+    recommended += [
+        p for p in parsed["DEFERRED_FRONTEND_PLUGINS"] if p not in recommended
+    ]
     groups = [
         DisplayGroup(
             "required",
@@ -223,6 +229,92 @@ def build_display_groups(parsed):
     # the portable groups on a Microdrop branch without the portable device.
     # Drop it rather than render a section header with nothing under it.
     return [group for group in groups if group.plugins]
+
+
+def plugin_group_active(group, mode, device, advanced):
+    """Whether *group*'s plugins count toward the launch selection."""
+    if group.side is None:
+        return False  # required plugins are always loaded, never editable
+
+    if advanced:
+        return True
+
+    if group.side not in MODE_PLUGIN_SIDES[mode]:
+        return False
+
+    return not group.devices or device in group.devices
+
+
+def offered_plugins(groups):
+    """Every optional plugin the checkout offers, across all *groups*."""
+    return list(
+        dict.fromkeys(
+            plugin
+            for group in groups
+            if group.side is not None
+            for plugin in group.plugins
+        )
+    )
+
+
+def selects_full_default_set(groups, selected, mode, device, advanced):
+    """Whether *selected* is everything microdrop.py loads without ``--plugins``.
+
+    Only a plain frontend + backend launch has that default; advanced mode
+    and single-side launches always pass their selection explicitly.
+    """
+    if advanced or mode != "dual":
+        return False
+
+    selected = set(selected)
+
+    return all(
+        plugin in selected
+        for group in groups
+        if plugin_group_active(group, mode, device, advanced)
+        for plugin in group.plugins
+    )
+
+
+def launch_plugin_names(cfg, groups, log=print):
+    """Plugin names to pass as ``--plugins``; empty means the full default set.
+
+    *groups* are the current checkout's display groups, or None when its
+    plugin_consts.py could not be read: the stored selection then passes
+    as-is. Otherwise the selection is re-evaluated against the checkout, so
+    a config saved with every plugin ticked launches the full default set
+    even after the checkout added, moved or removed plugins, and a name the
+    checkout no longer offers is dropped rather than rejected by
+    microdrop.py.
+    """
+    stored = list(cfg["plugins"])
+
+    if not stored or groups is None:
+        return stored
+
+    mode, device, advanced = cfg["mode"], cfg["device"], cfg["advanced_mode"]
+    stored_set, known = set(stored), set(cfg["known_plugins"])
+    enabled = [
+        plugin
+        for group in groups
+        if plugin_group_active(group, mode, device, advanced)
+        for plugin in group.plugins
+        if plugin_enabled_by_default(plugin, stored_set, known)
+    ]
+
+    if selects_full_default_set(groups, enabled, mode, device, advanced):
+        return []
+
+    offered = set(offered_plugins(groups))
+    dropped = [plugin for plugin in stored if plugin not in offered]
+
+    if dropped:
+        log(
+            "Skipping plugins this Microdrop version no longer offers: "
+            f"{', '.join(dropped)}"
+        )
+
+    return [plugin for plugin in stored if plugin in offered]
 
 
 def plugin_enabled_by_default(plugin, stored, known):
@@ -435,9 +527,42 @@ def parse_plugin_groups(consts_path):
             and isinstance(node.value, ast.List)
         ):
             found[node.targets[0].id] = [
-                elt.id for elt in node.value.elts if isinstance(elt, ast.Name)
+                name
+                for name in map(_plugin_entry_name, node.value.elts)
+                if name is not None
             ]
     return {name: found.get(name, []) for name in PLUGIN_CONSTS_VARS}
+
+
+def _plugin_entry_name(elt):
+    """Class name of one plugin-list entry, or None if it names no plugin.
+
+    Entries are bare class names, or ``DeferredPlugin(spec="module:Class",
+    ...)`` calls whose spec string carries the class name after the colon.
+    """
+    if isinstance(elt, ast.Name):
+        return elt.id
+
+    if isinstance(elt, ast.Call):
+        for keyword in elt.keywords:
+            if (
+                keyword.arg == "spec"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                return keyword.value.value.rpartition(":")[2] or None
+
+    return None
+
+
+def load_display_groups(install_dir):
+    """Display groups of *install_dir*'s checkout, or None if unreadable."""
+    try:
+        parsed = parse_plugin_groups(Path(install_dir) / PLUGIN_CONSTS_RELPATH)
+    except (OSError, SyntaxError):
+        return None
+
+    return build_display_groups(parsed)
 
 
 # --------------------------------------------------------------------------
@@ -551,10 +676,11 @@ def write_server_settings(cfg, log):
     )
 
 
-def build_run_args(cfg):
+def build_run_args(cfg, plugins):
+    """microdrop.py arguments; empty *plugins* means the full default set."""
     run_args = ["--device", cfg["device"]]
-    if cfg["plugins"]:
-        run_args += ["--plugins", *cfg["plugins"]]
+    if plugins:
+        run_args += ["--plugins", *plugins]
     if cfg["contexts"]:
         run_args += ["--contexts", *cfg["contexts"]]
     return run_args
@@ -616,7 +742,10 @@ def do_launch(cfg, log=print):
     if not launch_script.exists():
         launch_script = install_dir / script_name
 
-    run_args = build_run_args(cfg)
+    # Parsed after the auto-updates so the selection matches the checkout
+    # that is about to run.
+    plugins = launch_plugin_names(cfg, load_display_groups(install_dir), log)
+    run_args = build_run_args(cfg, plugins)
     if IS_WINDOWS:
         cmd = [
             "powershell",
@@ -1653,15 +1782,9 @@ class LauncherWindow:
             anchor="w", padx=(16, 0)
         )
 
-    def _group_active(self, group):
-        """Whether *group*'s plugins count toward the launch selection."""
-        if group.side is None:
-            return False  # required plugins are always loaded, never editable
-        if self.advanced_var.get():
-            return True
-        if group.side not in MODE_PLUGIN_SIDES[self.mode_var.get()]:
-            return False
-        return not group.devices or self.device_var.get() in group.devices
+    def _launch_target(self):
+        """The (mode, device, advanced) the plugin selection is gated by."""
+        return self.mode_var.get(), self.device_var.get(), self.advanced_var.get()
 
     def _switch_device(self):
         """Device radios: the chosen device starts with all of its plugins
@@ -1677,7 +1800,7 @@ class LauncherWindow:
     def _apply_gating(self):
         advanced = self.advanced_var.get()
         for group in self.display_groups:
-            active = self._group_active(group)
+            active = plugin_group_active(group, *self._launch_target())
             lock_mandatory = group.key == "frontend_core" and not advanced
             if lock_mandatory:
                 # Locked state mirrors reality: checked exactly when the
@@ -1712,9 +1835,10 @@ class LauncherWindow:
             btn.configure(state=state)
 
     def _selected_plugins(self):
+        target = self._launch_target()
         plugins = []
         for group in self.display_groups:
-            if not self._group_active(group):
+            if not plugin_group_active(group, *target):
                 continue
             for plugin in group.plugins:
                 var = self.plugin_vars.get(plugin)
@@ -1722,29 +1846,28 @@ class LauncherWindow:
                     plugins.append(plugin)
         return plugins
 
-    def _offered_plugins(self):
-        """Every optional plugin the checkout offers, across all groups."""
-        return list(
-            dict.fromkeys(
-                plugin
-                for group in self.display_groups
-                if group.side is not None
-                for plugin in group.plugins
-            )
-        )
-
     @staticmethod
     def _int_setting(var, default):
         text = var.get().strip()
         return max(1, int(text)) if text.isdigit() else default
 
     def _save(self):
+        selected = self._selected_plugins()
+
+        # Every plugin ticked is stored as no selection (the full default
+        # set), so it follows the plugins later Microdrop versions offer
+        # instead of freezing today's names.
+        if selects_full_default_set(
+            self.display_groups, selected, *self._launch_target()
+        ):
+            selected = []
+
         self.cfg.update(
             mode=self.mode_var.get(),
             advanced_mode=self.advanced_var.get(),
             device=self.device_var.get(),
-            plugins=self._selected_plugins(),
-            known_plugins=self._offered_plugins(),
+            plugins=selected,
+            known_plugins=offered_plugins(self.display_groups),
             contexts=[]
             if self.ctx_auto_var.get()
             else [name for name, var in self.ctx_vars.items() if var.get()],
@@ -1804,7 +1927,7 @@ class LauncherWindow:
         from tkinter import ttk
 
         self._save()
-        if not self.cfg["plugins"]:
+        if not self._selected_plugins():
             self.messagebox.showerror(
                 "Microdrop",
                 "No plugins selected — enable at least one plugin for the "
