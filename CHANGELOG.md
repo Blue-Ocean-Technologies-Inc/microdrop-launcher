@@ -1,3 +1,10 @@
+## v0.10.0 (2026-11-25)
+
+### Feat
+
+- hide fine-grained settings behind an Advanced checkbox
+- add a simple launch that runs pixi run microdrop
+
 ## v0.9.2 (2026-11-25)
 
 ### Fix
