@@ -48,6 +48,7 @@ REPO_DIR_NAME = "pixi-microdrop"
 PIXI_PROJECT_RELDIR = "microdrop-py"
 SRC_RELDIR = Path("microdrop-py/src")
 PLUGIN_CONSTS_RELPATH = Path("microdrop-py/src/examples/plugin_consts.py")
+MICRODROP_ENTRY_RELPATH = Path("microdrop-py/microdrop.py")
 REDIS_SETTINGS_RELPATH = Path("microdrop-py/src/redis_settings.json")
 DRAMATIQ_SETTINGS_RELPATH = Path("microdrop-py/src/dramatiq_settings.json")
 ICON_RELPATH = Path("microdrop-py/src/microdrop_style/icons/Microdrop_Icon.ico")
@@ -285,7 +286,9 @@ def launch_plugin_names(cfg, groups, log=print):
     a config saved with every plugin ticked launches the full default set
     even after the checkout added, moved or removed plugins, and a name the
     checkout no longer offers is dropped rather than rejected by
-    microdrop.py.
+    microdrop.py. A config with no *known_plugins* was saved by a launcher
+    before v0.9.0, which always stored the full ticked list, so it counts
+    as every plugin ticked.
     """
     stored = list(cfg["plugins"])
 
@@ -299,7 +302,7 @@ def launch_plugin_names(cfg, groups, log=print):
         for group in groups
         if plugin_group_active(group, mode, device, advanced)
         for plugin in group.plugins
-        if plugin_enabled_by_default(plugin, stored_set, known)
+        if not known or plugin_enabled_by_default(plugin, stored_set, known)
     ]
 
     if selects_full_default_set(groups, enabled, mode, device, advanced):
@@ -555,14 +558,44 @@ def _plugin_entry_name(elt):
     return None
 
 
-def load_display_groups(install_dir):
-    """Display groups of *install_dir*'s checkout, or None if unreadable."""
+def load_plugin_consts(install_dir):
+    """Parsed plugin lists of *install_dir*'s checkout, or None if unreadable."""
     try:
-        parsed = parse_plugin_groups(Path(install_dir) / PLUGIN_CONSTS_RELPATH)
+        return parse_plugin_groups(Path(install_dir) / PLUGIN_CONSTS_RELPATH)
     except (OSError, SyntaxError):
         return None
 
-    return build_display_groups(parsed)
+
+def drop_unsupported_deferred_plugins(plugins, deferred, install_dir, log=print):
+    """Remove deferred plugin names an outdated microdrop.py would reject.
+
+    Compatibility shim: pixi-microdrop before v0.8.3 builds its ``--plugins``
+    choices without DEFERRED_FRONTEND_PLUGINS and aborts on their names, and
+    only installs with pixi auto-update on receive the fix. Such a
+    microdrop.py never mentions the list, which is what this checks. Drop
+    the shim once those installs have caught up.
+    """
+    unsupported = [plugin for plugin in plugins if plugin in deferred]
+
+    if not unsupported:
+        return plugins
+
+    try:
+        entry_source = (Path(install_dir) / MICRODROP_ENTRY_RELPATH).read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        return plugins  # the launch script reports a missing microdrop.py
+
+    if "DEFERRED_FRONTEND_PLUGINS" in entry_source:
+        return plugins
+
+    log(
+        f"Skipping {', '.join(unsupported)}: loading them needs a "
+        "pixi-microdrop update (Git tab: Pull pixi-microdrop)."
+    )
+
+    return [plugin for plugin in plugins if plugin not in deferred]
 
 
 # --------------------------------------------------------------------------
@@ -744,7 +777,15 @@ def do_launch(cfg, log=print):
 
     # Parsed after the auto-updates so the selection matches the checkout
     # that is about to run.
-    plugins = launch_plugin_names(cfg, load_display_groups(install_dir), log)
+    consts = load_plugin_consts(install_dir)
+    groups = None if consts is None else build_display_groups(consts)
+    plugins = launch_plugin_names(cfg, groups, log)
+
+    if plugins and consts is not None:
+        plugins = drop_unsupported_deferred_plugins(
+            plugins, consts["DEFERRED_FRONTEND_PLUGINS"], install_dir, log
+        )
+
     run_args = build_run_args(cfg, plugins)
     if IS_WINDOWS:
         cmd = [
