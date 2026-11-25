@@ -1,3 +1,9 @@
+## v0.9.1 (2026-11-25)
+
+### Fix
+
+- launch the full plugin set unless the user deselected some
+
 ## v0.9.0 (2026-09-01)
 
 ### Feat
